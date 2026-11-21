@@ -3,6 +3,7 @@ mod auth;
 mod catalogo;
 mod clientes;
 mod dev;
+pub mod dispositivos;
 mod reportes;
 mod ventas;
 
@@ -11,5 +12,6 @@ pub use auth::*;
 pub use catalogo::*;
 pub use clientes::*;
 pub use dev::*;
+pub use dispositivos::*;
 pub use reportes::*;
 pub use ventas::*;

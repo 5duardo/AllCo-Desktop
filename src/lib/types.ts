@@ -1,5 +1,33 @@
 export type Rol = "admin" | "bodega" | "caja";
 
+export type Impresora = {
+  nombre: string;
+  puerto: string;
+  driver: string;
+  predeterminada: boolean;
+  sin_conexion: boolean;
+  instalada: boolean;
+  puente: boolean;
+  ruta: string;
+};
+
+export type DispositivoSimple = {
+  nombre: string;
+  clase: string;
+  estado: string;
+};
+
+export type DispositivosData = {
+  impresoras: Impresora[];
+  lectores: DispositivoSimple[];
+  usb: DispositivoSimple[];
+  ultimo_escaneo: string | null;
+  impresora_ticket: string;
+  modo: string;
+  errores: string[];
+  detectando: boolean;
+};
+
 export type Usuario = {
   id: number;
   nombre: string;
@@ -185,6 +213,13 @@ export type ConfigApp = {
   umbral_respaldo_dias: string;
   caja_puede_descuento: string;
   negocio_logo: string | null;
+  ticket_encabezado: string;
+  ticket_mostrar_direccion: string;
+  ticket_mostrar_fecha: string;
+  ticket_mostrar_cajero: string;
+  ticket_mostrar_cliente: string;
+  ticket_mostrar_pago: string;
+  ticket_mostrar_recibido: string;
 };
 
 export type MarcaNegocio = {

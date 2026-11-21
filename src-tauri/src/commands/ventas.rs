@@ -1,6 +1,6 @@
 use crate::commands::auth::{require_roles, require_user};
 use crate::db;
-use crate::models::{VentaIn, VentaListado, VentaResultado};
+use crate::models::{ConfigApp, VentaIn, VentaListado, VentaResultado};
 use crate::AppState;
 use rusqlite::params;
 use std::fs;
@@ -165,9 +165,7 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
     tx.commit().map_err(|e| e.to_string())?;
 
     let ticket = build_ticket(
-        &cfg.negocio_nombre,
-        &cfg.negocio_direccion,
-        &cfg.ticket_pie,
+        &cfg,
         venta_id,
         &ts,
         &user.nombre,
@@ -183,27 +181,34 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
     let tickets_dir = state.data_dir.join("tickets");
     let _ = fs::create_dir_all(&tickets_dir);
     let ticket_path = tickets_dir.join(format!("ticket-{venta_id}.txt"));
-    let print_res = fs::write(&ticket_path, &ticket);
-    let (impresion_ok, impresion_error) = match print_res {
-        Ok(_) => {
-            let _ = db::log_event(
-                &conn,
-                "print_ok",
-                Some(user.id),
-                &format!("Factura #{venta_id} generada"),
-                None,
-            );
-            (true, None)
-        }
-        Err(e) => {
-            let _ = db::log_event(
-                &conn,
-                "print_fail",
-                Some(user.id),
-                &format!("Factura #{venta_id}: {e}"),
-                None,
-            );
-            (false, Some(e.to_string()))
+    let _ = fs::write(&ticket_path, &ticket);
+
+    // Impresión física en la impresora elegida en la página Dispositivos.
+    let (impresora, _, _) = super::dispositivos::configuracion_impresora(&conn);
+    let (impresion_ok, impresion_error) = if impresora.trim().is_empty() {
+        (false, None)
+    } else {
+        match super::dispositivos::imprimir_ticket(&conn, &impresora, &ticket) {
+            Ok(_) => {
+                let _ = db::log_event(
+                    &conn,
+                    "print_ok",
+                    Some(user.id),
+                    &format!("Factura #{venta_id} impresa en {impresora}"),
+                    None,
+                );
+                (true, None)
+            }
+            Err(e) => {
+                let _ = db::log_event(
+                    &conn,
+                    "print_fail",
+                    Some(user.id),
+                    &format!("Factura #{venta_id}: {e}"),
+                    None,
+                );
+                (false, Some(e))
+            }
         }
     };
 
@@ -227,9 +232,7 @@ fn truncate(s: &str, max: usize) -> String {
 }
 
 fn build_ticket(
-    negocio: &str,
-    direccion: &str,
-    pie: &str,
+    cfg: &ConfigApp,
     id: i64,
     fecha: &str,
     cajero: &str,
@@ -241,15 +244,30 @@ fn build_ticket(
     recibido: f64,
     cambio: f64,
 ) -> String {
+    let ver = |valor: &str| valor == "1";
     let mut t = String::new();
-    t.push_str(&format!("{negocio}\n"));
-    t.push_str(&format!("{direccion}\n"));
+    t.push_str(&format!("{}\n", cfg.negocio_nombre));
+    if ver(&cfg.ticket_mostrar_direccion) && !cfg.negocio_direccion.trim().is_empty() {
+        t.push_str(&format!("{}\n", cfg.negocio_direccion));
+    }
+    for linea in cfg.ticket_encabezado.lines() {
+        if !linea.trim().is_empty() {
+            t.push_str(linea);
+            t.push('\n');
+        }
+    }
     t.push_str("--------------------------------\n");
     t.push_str(&format!("Factura #{id}\n"));
-    t.push_str(&format!("{fecha}\n"));
-    t.push_str(&format!("Cajero: {cajero}\n"));
-    if let Some(c) = cliente {
-        t.push_str(&format!("Cliente: {}\n", truncate(c, 28)));
+    if ver(&cfg.ticket_mostrar_fecha) {
+        t.push_str(&format!("{fecha}\n"));
+    }
+    if ver(&cfg.ticket_mostrar_cajero) {
+        t.push_str(&format!("Cajero: {cajero}\n"));
+    }
+    if ver(&cfg.ticket_mostrar_cliente) {
+        if let Some(c) = cliente {
+            t.push_str(&format!("Cliente: {}\n", truncate(c, 28)));
+        }
     }
     t.push_str("--------------------------------\n");
     for l in lineas {
@@ -261,13 +279,15 @@ fn build_ticket(
         t.push_str(&format!("Descuento      {}\n", db::money(descuento)));
     }
     t.push_str(&format!("TOTAL          {}\n", db::money(total)));
-    t.push_str(&format!("Pago: {metodo}\n"));
-    if metodo == "efectivo" {
+    if ver(&cfg.ticket_mostrar_pago) {
+        t.push_str(&format!("Pago: {metodo}\n"));
+    }
+    if ver(&cfg.ticket_mostrar_recibido) && metodo == "efectivo" {
         t.push_str(&format!("Recibido       {}\n", db::money(recibido)));
         t.push_str(&format!("Cambio         {}\n", db::money(cambio)));
     }
     t.push_str("--------------------------------\n");
-    t.push_str(pie);
+    t.push_str(&cfg.ticket_pie);
     t.push('\n');
     t
 }

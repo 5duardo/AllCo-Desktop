@@ -270,6 +270,20 @@ pub struct ConfigApp {
     pub caja_puede_descuento: String,
     #[serde(default)]
     pub negocio_logo: Option<String>,
+    #[serde(default)]
+    pub ticket_encabezado: String,
+    #[serde(default)]
+    pub ticket_mostrar_direccion: String,
+    #[serde(default)]
+    pub ticket_mostrar_fecha: String,
+    #[serde(default)]
+    pub ticket_mostrar_cajero: String,
+    #[serde(default)]
+    pub ticket_mostrar_cliente: String,
+    #[serde(default)]
+    pub ticket_mostrar_pago: String,
+    #[serde(default)]
+    pub ticket_mostrar_recibido: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

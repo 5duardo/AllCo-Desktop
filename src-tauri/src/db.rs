@@ -209,6 +209,15 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
 
+    // La sucursal por defecto se llama Principal (antes "El Centro").
+    conn.execute(
+        "UPDATE sucursales SET nombre = 'Principal'
+         WHERE nombre = 'El Centro'
+           AND NOT EXISTS (SELECT 1 FROM sucursales s2 WHERE s2.nombre = 'Principal')",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+
     seed(conn)?;
     ensure_dev_user(conn)?;
     migrate_default_password(conn)
@@ -320,7 +329,7 @@ fn seed(conn: &Connection) -> Result<(), String> {
 
     conn.execute(
         "INSERT INTO sucursales (nombre, direccion, activo) VALUES (?1, ?2, 1)",
-        params!["El Centro", "Honduras"],
+        params!["Principal", "Honduras"],
     )
     .map_err(|e| e.to_string())?;
 
@@ -400,6 +409,34 @@ pub fn config_map(conn: &Connection) -> Result<ConfigApp, String> {
             .get("negocio_logo")
             .filter(|v| !v.trim().is_empty())
             .cloned(),
+        ticket_encabezado: map
+            .get("ticket_encabezado")
+            .cloned()
+            .unwrap_or_default(),
+        ticket_mostrar_direccion: map
+            .get("ticket_mostrar_direccion")
+            .cloned()
+            .unwrap_or_else(|| "1".into()),
+        ticket_mostrar_fecha: map
+            .get("ticket_mostrar_fecha")
+            .cloned()
+            .unwrap_or_else(|| "1".into()),
+        ticket_mostrar_cajero: map
+            .get("ticket_mostrar_cajero")
+            .cloned()
+            .unwrap_or_else(|| "1".into()),
+        ticket_mostrar_cliente: map
+            .get("ticket_mostrar_cliente")
+            .cloned()
+            .unwrap_or_else(|| "1".into()),
+        ticket_mostrar_pago: map
+            .get("ticket_mostrar_pago")
+            .cloned()
+            .unwrap_or_else(|| "1".into()),
+        ticket_mostrar_recibido: map
+            .get("ticket_mostrar_recibido")
+            .cloned()
+            .unwrap_or_else(|| "1".into()),
     })
 }
 
@@ -420,6 +457,13 @@ pub fn save_config(conn: &Connection, cfg: &ConfigApp) -> Result<(), String> {
         ("umbral_respaldo_dias", cfg.umbral_respaldo_dias.as_str()),
         ("caja_puede_descuento", cfg.caja_puede_descuento.as_str()),
         ("negocio_logo", cfg.negocio_logo.as_deref().unwrap_or("")),
+        ("ticket_encabezado", cfg.ticket_encabezado.as_str()),
+        ("ticket_mostrar_direccion", cfg.ticket_mostrar_direccion.as_str()),
+        ("ticket_mostrar_fecha", cfg.ticket_mostrar_fecha.as_str()),
+        ("ticket_mostrar_cajero", cfg.ticket_mostrar_cajero.as_str()),
+        ("ticket_mostrar_cliente", cfg.ticket_mostrar_cliente.as_str()),
+        ("ticket_mostrar_pago", cfg.ticket_mostrar_pago.as_str()),
+        ("ticket_mostrar_recibido", cfg.ticket_mostrar_recibido.as_str()),
     ];
     for (k, v) in pairs {
         conn.execute(

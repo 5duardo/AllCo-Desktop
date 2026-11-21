@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Banknote, CheckCircle2, Package, ScanBarcode, Search, ShoppingCart, Trash2, UserPlus, Wrench } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Banknote, CheckCircle2, Package, Printer, Search, ShoppingCart, Trash2, UserPlus, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { lempiras } from "@/lib/format";
@@ -7,7 +7,6 @@ import type { CartLine, Cliente, Producto, Servicio } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
-import { Badge } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -15,8 +14,6 @@ import { Modal } from "@/components/ui/modal";
 
 export function PosPage() {
   const { user } = useAuth();
-  const scanRef = useRef<HTMLInputElement>(null);
-  const [codigo, setCodigo] = useState("");
   const [productos, setProductos] = useState<Producto[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -33,19 +30,116 @@ export function PosPage() {
   const [catalogo, setCatalogo] = useState<"productos" | "servicios">("productos");
   const [busqueda, setBusqueda] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [descuento, setDescuento] = useState(0);
+  const [descuentoPorc, setDescuentoPorc] = useState(0);
   const [metodo, setMetodo] = useState("efectivo");
   const [recibido, setRecibido] = useState("");
   const [error, setError] = useState("");
   const [factura, setFactura] = useState<string | null>(null);
+  const [facturaId, setFacturaId] = useState<number | null>(null);
+  const [impresion, setImpresion] = useState<{ ok: boolean; error: string | null } | null>(null);
+  const [reimprimiendo, setReimprimiendo] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [agregado, setAgregado] = useState<{
+    nombre: string;
+    cantidad: number;
+    total: number;
+  } | null>(null);
 
   const canDiscount = user?.rol === "admin";
+
+  // El lector de código de barras es un teclado HID: escribe el código muy
+  // rápido y termina con Enter. Se detecta esa ráfaga en toda la página, sin
+  // barra de escaneo ni necesidad de tener un campo enfocado.
+  const scanBuffer = useRef({
+    keys: "",
+    last: 0,
+    maxGap: 0,
+    target: null as Element | null,
+    value: "",
+  });
+  const modalAbierto = useRef(false);
+  modalAbierto.current = clienteModal || !!factura;
+  const procesarRef = useRef<(code: string) => void>(() => {});
+  procesarRef.current = (code) => {
+    void procesarCodigo(code);
+  };
+
+  useEffect(() => {
+    function reset(buffer: typeof scanBuffer.current) {
+      buffer.keys = "";
+      buffer.maxGap = 0;
+      buffer.target = null;
+    }
+    function restaurarCampo(buffer: typeof scanBuffer.current) {
+      const el = buffer.target;
+      if (!el || !el.isConnected) return;
+      if (
+        !(el instanceof HTMLInputElement) &&
+        !(el instanceof HTMLTextAreaElement) &&
+        !(el instanceof HTMLSelectElement)
+      ) {
+        return;
+      }
+      // Quita los caracteres que el escáner haya podido escribir en un campo.
+      const proto =
+        el instanceof HTMLSelectElement
+          ? HTMLSelectElement.prototype
+          : el instanceof HTMLTextAreaElement
+            ? HTMLTextAreaElement.prototype
+            : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(proto, "value")?.set?.call(el, buffer.value);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    function onKeyDown(e: globalThis.KeyboardEvent) {
+      if (modalAbierto.current) return;
+      const b = scanBuffer.current;
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        reset(b);
+        return;
+      }
+      const now = Date.now();
+      if (e.key === "Enter") {
+        const code = b.keys;
+        const esEscaneo = code.length >= 5 && b.maxGap < 50 && now - b.last < 120;
+        if (esEscaneo) {
+          e.preventDefault();
+          e.stopPropagation();
+          restaurarCampo(b);
+          procesarRef.current(code);
+        }
+        reset(b);
+        return;
+      }
+      if (e.key.length !== 1) {
+        reset(b);
+        return;
+      }
+      const gap = now - b.last;
+      if (gap > 120 || b.keys === "") {
+        b.keys = e.key;
+        b.maxGap = 0;
+        b.target = e.target as Element | null;
+        b.value =
+          b.target instanceof HTMLInputElement ||
+          b.target instanceof HTMLTextAreaElement ||
+          b.target instanceof HTMLSelectElement
+            ? b.target.value
+            : "";
+      } else {
+        b.keys += e.key;
+        b.maxGap = Math.max(b.maxGap, gap);
+      }
+      b.last = now;
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
 
   async function cargarCatalogos() {
     const [s, p, c] = await Promise.all([
       api.listarServicios(true),
-      api.listarProductos(undefined, true),
+      api.listarProductos(),
       api.listarClientes(undefined, true),
     ]);
     setServicios(s);
@@ -55,8 +149,14 @@ export function PosPage() {
 
   useEffect(() => {
     cargarCatalogos().catch((e) => setError(String(e)));
-    scanRef.current?.focus();
   }, []);
+
+  // Aviso temporal al agregar un ítem; se cierra solo y no quita el foco al escáner.
+  useEffect(() => {
+    if (!agregado) return;
+    const t = window.setTimeout(() => setAgregado(null), 1400);
+    return () => window.clearTimeout(t);
+  }, [agregado]);
 
   const filtro = busqueda.trim().toLowerCase();
   const productosFiltrados = productos.filter(
@@ -77,13 +177,10 @@ export function PosPage() {
     (s, l) => s + l.precio_unitario * l.cantidad - l.descuento,
     0,
   );
+  const descuento = Math.min(subtotal, Math.round(subtotal * descuentoPorc) / 100);
   const total = Math.max(0, subtotal - descuento);
   const rec = Number(recibido) || 0;
   const cambio = metodo === "efectivo" ? rec - total : 0;
-
-  function focusScan() {
-    setTimeout(() => scanRef.current?.focus(), 50);
-  }
 
   async function crearCliente(e: FormEvent) {
     e.preventDefault();
@@ -121,6 +218,14 @@ export function PosPage() {
   }
 
   function addLine(line: CartLine) {
+    const actual =
+      cart.find((p) => p.tipo === line.tipo && p.referencia_id === line.referencia_id)
+        ?.cantidad ?? 0;
+    const nextQty = actual + line.cantidad;
+    if (line.tipo === "producto" && line.stock != null && nextQty > line.stock) {
+      setError(`Stock insuficiente. Disponible: ${line.stock}`);
+      return;
+    }
     setCart((prev) => {
       const i = prev.findIndex(
         (p) => p.tipo === line.tipo && p.referencia_id === line.referencia_id,
@@ -138,26 +243,23 @@ export function PosPage() {
       return [...prev, line];
     });
     setError("");
-    focusScan();
+    setAgregado({
+      nombre: line.nombre,
+      cantidad: nextQty,
+      total: line.precio_unitario * nextQty,
+    });
   }
 
-  async function onScan(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const code = codigo.trim();
-    if (!code) return;
-    setCodigo("");
+  async function procesarCodigo(code: string) {
     try {
       await api.registrarEscaneo(code);
       const p = await api.buscarProductoCodigo(code);
       if (!p) {
         setError(`No hay producto con código ${code}`);
-        focusScan();
         return;
       }
       if (p.stock <= 0) {
         setError(`${p.nombre} no tiene stock.`);
-        focusScan();
         return;
       }
       addLine({
@@ -215,8 +317,10 @@ export function PosPage() {
         recibido: rec,
       });
       setFactura(res.ticket);
+      setFacturaId(res.id);
+      setImpresion({ ok: res.impresion_ok, error: res.impresion_error ?? null });
       setCart([]);
-      setDescuento(0);
+      setDescuentoPorc(0);
       setRecibido("");
       setClienteId("");
       void cargarCatalogos().catch(() => {});
@@ -224,7 +328,20 @@ export function PosPage() {
       setError(String(err));
     } finally {
       setBusy(false);
-      focusScan();
+    }
+  }
+
+  async function reimprimir() {
+    if (!facturaId) return;
+    setReimprimiendo(true);
+    try {
+      await api.imprimirFactura(facturaId);
+      setImpresion({ ok: true, error: null });
+      setError("");
+    } catch (err) {
+      setImpresion({ ok: false, error: String(err) });
+    } finally {
+      setReimprimiendo(false);
     }
   }
 
@@ -233,28 +350,10 @@ export function PosPage() {
       <PageHero
         title="Caja"
         subtitle="Cobra productos y servicios y genera la factura."
-        description="Escanea productos, agrega servicios, aplica descuentos permitidos y registra el pago en efectivo, tarjeta o transferencia."
+        description="Escanea el código de barras en cualquier parte de la pantalla, agrega servicios y registra el pago en efectivo, tarjeta o transferencia."
         icon={ShoppingCart}
-        badge="Punto de venta"
+        badge={cart.length > 0 ? `${cart.length} ítems` : "Punto de venta"}
       />
-      <div className="mb-4 flex items-center gap-3">
-        <div className="relative flex-1">
-          <ScanBarcode className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-accent-fg" />
-          <Input
-            ref={scanRef}
-            value={codigo}
-            onChange={(e) => setCodigo(e.target.value)}
-            onKeyDown={onScan}
-            placeholder="Escanee o escriba el código de barras y pulse Enter"
-            className="h-14 pl-13 text-lg"
-            aria-label="Código de barras"
-          />
-        </div>
-        <Badge tone="accent" className="hidden h-8 px-3 text-sm md:inline-flex">
-          <ShoppingCart className="h-4 w-4" />
-          {cart.length} ítems
-        </Badge>
-      </div>
       {error ? <Alert>{error}</Alert> : null}
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_380px]">
@@ -415,8 +514,8 @@ export function PosPage() {
           </Card>
         </div>
 
-        <Card className="h-fit p-5 lg:sticky lg:top-5">
-          <form onSubmit={cobrar} className="space-y-4">
+        <Card className="flex flex-col p-5 lg:sticky lg:top-5 lg:h-full">
+          <form onSubmit={cobrar} className="flex min-h-0 flex-1 flex-col space-y-4">
             <div className="rounded-2xl bg-accent-soft p-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-accent-fg">
                 Total a cobrar
@@ -456,14 +555,24 @@ export function PosPage() {
             </div>
             {canDiscount ? (
               <div>
-                <Label>Descuento de la factura (L)</Label>
+                <Label>Descuento de la factura (%)</Label>
                 <Input
                   type="number"
                   min={0}
-                  step="0.01"
-                  value={descuento || ""}
-                  onChange={(e) => setDescuento(Number(e.target.value) || 0)}
+                  max={100}
+                  step="1"
+                  value={descuentoPorc}
+                  onChange={(e) =>
+                    setDescuentoPorc(
+                      Math.min(100, Math.max(0, Number(e.target.value) || 0)),
+                    )
+                  }
                 />
+                {descuentoPorc > 0 ? (
+                  <p className="mt-1 text-xs text-fg-muted">
+                    {descuentoPorc}% de {lempiras(subtotal)} = {lempiras(descuento)} de descuento
+                  </p>
+                ) : null}
               </div>
             ) : null}
             <div>
@@ -484,18 +593,32 @@ export function PosPage() {
                   value={recibido}
                   onChange={(e) => setRecibido(e.target.value)}
                 />
-                <p className="mt-2 flex items-center justify-between rounded-xl bg-surface-2 px-3 py-2 text-sm">
-                  <span className="text-fg-muted">Cambio</span>
-                  <b className={cambio < 0 ? "text-danger-fg" : "text-ok-fg"}>
-                    {lempiras(Math.max(0, cambio))}
-                  </b>
-                </p>
+                <div
+                  className={`mt-3 rounded-2xl border px-4 py-3 ${
+                    cambio < 0
+                      ? "border-danger bg-danger-soft"
+                      : "border-ok bg-[var(--ok-soft)]"
+                  }`}
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
+                    {cambio < 0 ? "Falta para cobrar" : "Cambio para el cliente"}
+                  </p>
+                  <p
+                    className={`mt-1 text-3xl font-bold tabular-nums tracking-tight ${
+                      cambio < 0 ? "text-danger-fg" : "text-ok-fg"
+                    }`}
+                  >
+                    {lempiras(Math.abs(cambio))}
+                  </p>
+                </div>
               </div>
             ) : null}
-            <Button type="submit" size="xl" className="w-full" disabled={busy}>
-              <Banknote className="h-5 w-5" />
-              {busy ? "Registrando…" : "Cobrar e imprimir"}
-            </Button>
+            <div className="mt-auto pt-2">
+              <Button type="submit" size="xl" className="w-full" disabled={busy}>
+                <Banknote className="h-5 w-5" />
+                {busy ? "Registrando…" : "Cobrar e imprimir"}
+              </Button>
+            </div>
           </form>
         </Card>
       </div>
@@ -506,7 +629,6 @@ export function PosPage() {
         subtitle="La factura quedó guardada en la carpeta de datos."
         onClose={() => {
           setFactura(null);
-          focusScan();
         }}
       >
         <p className="mb-3 flex items-center gap-2 text-sm font-medium text-ok-fg">
@@ -516,15 +638,42 @@ export function PosPage() {
         <pre className="whitespace-pre-wrap rounded-xl bg-surface-2 p-4 font-mono text-xs text-fg">
           {factura}
         </pre>
-        <p className="mt-3 text-xs text-fg-muted">
-          La impresora térmica ESC/POS se conectará en la siguiente iteración.
-        </p>
+        {impresion?.ok ? (
+          <p className="mt-3 text-sm font-medium text-ok-fg">Factura enviada a la impresora.</p>
+        ) : (
+          <div className="mt-3">
+            <Alert tone="warn">
+              {impresion?.error
+                ? `No se pudo imprimir: ${impresion.error}`
+                : "La venta se registró, pero no hay impresora configurada. Seleccione una en la página Dispositivos."}
+            </Alert>
+            <Button
+              className="mt-2 w-full"
+              variant="secondary"
+              onClick={reimprimir}
+              disabled={reimprimiendo}
+            >
+              <Printer className="h-4 w-4" />
+              {reimprimiendo ? "Enviando…" : "Imprimir factura"}
+            </Button>
+          </div>
+        )}
+        {impresion?.ok ? (
+          <Button
+            className="mt-2 w-full"
+            variant="ghost"
+            onClick={reimprimir}
+            disabled={reimprimiendo}
+          >
+            <Printer className="h-4 w-4" />
+            {reimprimiendo ? "Enviando…" : "Reimprimir factura"}
+          </Button>
+        ) : null}
         <Button
           className="mt-4 w-full"
           size="lg"
           onClick={() => {
             setFactura(null);
-            focusScan();
           }}
         >
           Nueva venta
@@ -582,6 +731,23 @@ export function PosPage() {
           </div>
         </form>
       </Modal>
+
+      {agregado ? (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
+          <div
+            role="status"
+            className="anim-pop w-full max-w-xs rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-2xl"
+          >
+            <CheckCircle2 className="mx-auto h-12 w-12 text-ok-fg" />
+            <p className="mt-3 text-sm font-medium text-fg-muted">Agregado a la venta</p>
+            <p className="mt-1 text-lg font-bold text-fg">{agregado.nombre}</p>
+            <p className="mt-2 text-sm text-fg-muted">
+              {agregado.cantidad} en el ticket ·{" "}
+              <span className="font-semibold text-fg">{lempiras(agregado.total)}</span>
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

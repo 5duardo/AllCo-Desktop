@@ -5,6 +5,7 @@ import type {
   ClienteIn,
   ConfigApp,
   DashboardData,
+  DispositivosData,
   EstadoPruebas,
   EventoSistema,
   MarcaNegocio,
@@ -31,12 +32,18 @@ export const api = {
 
   listarProveedores: () => invoke<CatalogoSimple[]>("listar_proveedores"),
   listarSucursales: () => invoke<CatalogoSimple[]>("listar_sucursales"),
-  listarProductos: (q?: string, soloActivos = true) =>
-    invoke<Producto[]>("listar_productos", { q: q || null, soloActivos }),
+  listarProductos: (q?: string, estado: "activos" | "archivados" | "todos" = "activos") =>
+    invoke<Producto[]>("listar_productos", { q: q || null, estado }),
   buscarProductoCodigo: (codigo: string) =>
     invoke<Producto | null>("buscar_producto_codigo", { codigo }),
   guardarProducto: (data: Record<string, unknown>) =>
     invoke<number>("guardar_producto", { data }),
+  archivarProducto: (productoId: number) =>
+    invoke<void>("archivar_producto", { productoId }),
+  restaurarProducto: (productoId: number) =>
+    invoke<void>("restaurar_producto", { productoId }),
+  eliminarProducto: (productoId: number) =>
+    invoke<void>("eliminar_producto", { productoId }),
   movimientoInventario: (
     productoId: number,
     tipo: string,
@@ -113,4 +120,33 @@ export const api = {
   estadoPruebas: () => invoke<EstadoPruebas>("estado_pruebas"),
   agregarDatosEjemplo: (tipo: string) =>
     invoke<EstadoPruebas>("agregar_datos_ejemplo", { tipo }),
+
+  listarDispositivos: () => invoke<DispositivosData>("listar_dispositivos"),
+  actualizarDispositivos: () => invoke<DispositivosData>("actualizar_dispositivos"),
+  guardarImpresoraTicket: (
+    nombre: string,
+    modo?: "usb" | "spooler",
+    ruta?: string,
+  ) =>
+    invoke<void>("guardar_impresora_ticket", {
+      nombre,
+      modo: modo ?? null,
+      ruta: ruta ?? null,
+    }),
+  imprimirPrueba: (impresora: string, modo?: "usb" | "spooler", ruta?: string) =>
+    invoke<string>("imprimir_prueba", {
+      impresora,
+      modo: modo ?? null,
+      ruta: ruta ?? null,
+    }),
+  imprimirFactura: (
+    ventaId: number,
+    impresora?: string,
+    modo?: "usb" | "spooler",
+  ) =>
+    invoke<string>("imprimir_factura", {
+      ventaId,
+      impresora: impresora ?? null,
+      modo: modo ?? null,
+    }),
 };

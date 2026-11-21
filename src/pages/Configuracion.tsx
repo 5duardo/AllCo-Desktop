@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { Download, Palette, RefreshCw, Save, Settings, Store, Trash2, Upload } from "lucide-react";
+import { Download, Palette, Printer, RefreshCw, Save, Settings, Store, Trash2, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import type { ConfigApp } from "@/lib/types";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -12,7 +12,7 @@ import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
-import { Input, Label } from "@/components/ui/input";
+import { Input, Label, Textarea } from "@/components/ui/input";
 
 export function ConfigPage() {
   const [cfg, setCfg] = useState<ConfigApp | null>(null);
@@ -161,6 +161,57 @@ export function ConfigPage() {
   }
 
   const nombreMarca = cfg?.negocio_nombre.trim() || "AllCo";
+
+  type TicketFlag =
+    | "ticket_mostrar_direccion"
+    | "ticket_mostrar_fecha"
+    | "ticket_mostrar_cajero"
+    | "ticket_mostrar_cliente"
+    | "ticket_mostrar_pago"
+    | "ticket_mostrar_recibido";
+
+  const elementosTicket: { key: TicketFlag; label: string }[] = [
+    { key: "ticket_mostrar_direccion", label: "Dirección del negocio" },
+    { key: "ticket_mostrar_fecha", label: "Fecha y hora" },
+    { key: "ticket_mostrar_cajero", label: "Nombre del cajero" },
+    { key: "ticket_mostrar_cliente", label: "Nombre del cliente" },
+    { key: "ticket_mostrar_pago", label: "Método de pago" },
+    { key: "ticket_mostrar_recibido", label: "Recibido y cambio (efectivo)" },
+  ];
+
+  function toggleTicket(key: TicketFlag) {
+    if (!cfg) return;
+    setCfg({ ...cfg, [key]: cfg[key] === "1" ? "0" : "1" });
+  }
+
+  const vistaTicket = (() => {
+    if (!cfg) return "";
+    const ver = (v: string) => v === "1";
+    const lineas = [cfg.negocio_nombre];
+    if (ver(cfg.ticket_mostrar_direccion) && cfg.negocio_direccion.trim()) {
+      lineas.push(cfg.negocio_direccion);
+    }
+    cfg.ticket_encabezado.split("\n").forEach((l) => {
+      if (l.trim()) lineas.push(l);
+    });
+    lineas.push("--------------------------------", "Factura #12");
+    if (ver(cfg.ticket_mostrar_fecha)) lineas.push("21/11/2026 10:30:00");
+    if (ver(cfg.ticket_mostrar_cajero)) lineas.push("Cajero: Administrador");
+    if (ver(cfg.ticket_mostrar_cliente)) lineas.push("Cliente: Cliente de ejemplo 1");
+    lineas.push(
+      "--------------------------------",
+      "2 x Llanta 195/65R15   L 2,400.00",
+      "1 x Lavado básico      L 250.00",
+      "--------------------------------",
+      "TOTAL                  L 2,650.00",
+    );
+    if (ver(cfg.ticket_mostrar_pago)) lineas.push("Pago: efectivo");
+    if (ver(cfg.ticket_mostrar_recibido)) {
+      lineas.push("Recibido               L 3,000.00", "Cambio                 L 350.00");
+    }
+    lineas.push("--------------------------------", cfg.ticket_pie);
+    return lineas.join("\n");
+  })();
 
   return (
     <div className="page">
@@ -332,6 +383,87 @@ export function ConfigPage() {
           </div>
         </Card>
       </div>
+
+      <Card className="mt-5 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="icon-chip">
+              <Printer className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="card-title">Elementos de la factura al imprimir</h2>
+              <p className="mt-1 text-sm text-fg-muted">
+                Personalice el texto y elija qué datos aparecen en el ticket de caja.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {cfg ? (
+          <form onSubmit={save} className="mt-5 grid gap-6 lg:grid-cols-2">
+            <div className="space-y-4">
+              <div>
+                <Label>Encabezado adicional</Label>
+                <Textarea
+                  value={cfg.ticket_encabezado}
+                  onChange={(e) => setCfg({ ...cfg, ticket_encabezado: e.target.value })}
+                  placeholder="Ej. Llantera y Car Wash · Tel. 9256-1515"
+                  className="min-h-20 font-mono text-xs"
+                />
+                <p className="mt-1 text-xs text-fg-muted">
+                  Va debajo del nombre del negocio, una línea por renglón.
+                </p>
+              </div>
+              <div>
+                <Label>Pie de factura</Label>
+                <Textarea
+                  value={cfg.ticket_pie}
+                  onChange={(e) => setCfg({ ...cfg, ticket_pie: e.target.value })}
+                  placeholder="¡Gracias por su preferencia!"
+                  className="min-h-20 font-mono text-xs"
+                />
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-medium text-fg-muted">Datos incluidos</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {elementosTicket.map((el) => (
+                    <label
+                      key={el.key}
+                      className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[var(--accent)]"
+                        checked={cfg[el.key] === "1"}
+                        onChange={() => toggleTicket(el.key)}
+                      />
+                      {el.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit">
+                  <Save className="h-4 w-4" />
+                  Guardar factura
+                </Button>
+              </div>
+            </div>
+            <div>
+              <p className="section-title mb-2">Vista previa del ticket</p>
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-2xl bg-[#111214] p-4 font-mono text-xs leading-relaxed text-[#d6d9de]">
+                {vistaTicket}
+              </pre>
+              <p className="mt-2 text-xs text-fg-muted">
+                Los cambios aplican a las facturas nuevas al cobrar. Las reimpresiones usan el ticket
+                guardado original.
+              </p>
+            </div>
+          </form>
+        ) : (
+          <p className="mt-4 text-sm text-fg-muted">Cargando configuración…</p>
+        )}
+      </Card>
 
       <Card className="mt-5 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">

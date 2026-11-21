@@ -47,15 +47,17 @@ pub fn listar_sucursales(state: State<AppState>) -> Result<Vec<CatalogoSimple>, 
 pub fn listar_productos(
     state: State<AppState>,
     q: Option<String>,
-    solo_activos: Option<bool>,
+    estado: Option<String>,
 ) -> Result<Vec<Producto>, String> {
     let user = require_user(&state)?;
     let show_cost = user.rol == "admin";
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let mut sql = PRODUCTO_SELECT.to_string();
     sql.push_str(" WHERE 1=1");
-    if solo_activos.unwrap_or(true) {
-        sql.push_str(" AND p.activo = 1");
+    match estado.as_deref() {
+        Some("todos") => {}
+        Some("archivados") => sql.push_str(" AND p.activo = 0"),
+        _ => sql.push_str(" AND p.activo = 1"),
     }
     let query = q.unwrap_or_default();
     let trimmed = query.trim().to_string();
@@ -104,8 +106,28 @@ pub fn guardar_producto(state: State<AppState>, data: ProductoIn) -> Result<i64,
     if data.nombre.trim().is_empty() {
         return Err("El nombre es obligatorio.".into());
     }
+    if data.precio_venta < 0.0 {
+        return Err("El precio de venta no puede ser negativo.".into());
+    }
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let ts = db::now();
+    let codigo = data.codigo_barras.trim().to_string();
+    if data.activo && !codigo.is_empty() {
+        let duplicado: Option<String> = conn
+            .query_row(
+                "SELECT nombre FROM productos
+                 WHERE codigo_barras = ?1 AND activo = 1 AND id != ?2",
+                params![codigo, data.id.unwrap_or(0)],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some(nombre) = duplicado {
+            return Err(format!(
+                "El código {codigo} ya está asignado a \"{nombre}\". Edite ese producto o use otro código."
+            ));
+        }
+    }
     let costo = if user.rol == "admin" {
         data.costo
     } else if let Some(id) = data.id {
@@ -178,6 +200,86 @@ pub fn guardar_producto(state: State<AppState>, data: ProductoIn) -> Result<i64,
         }
         Ok(id)
     }
+}
+
+#[tauri::command]
+pub fn archivar_producto(state: State<AppState>, producto_id: i64) -> Result<(), String> {
+    require_roles(&state, &["admin", "bodega"])?;
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let n = conn
+        .execute(
+            "UPDATE productos SET activo = 0, updated_at = ?1 WHERE id = ?2",
+            params![db::now(), producto_id],
+        )
+        .map_err(|e| e.to_string())?;
+    if n == 0 {
+        return Err("Producto no encontrado.".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn restaurar_producto(state: State<AppState>, producto_id: i64) -> Result<(), String> {
+    require_roles(&state, &["admin", "bodega"])?;
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let codigo: String = conn
+        .query_row(
+            "SELECT codigo_barras FROM productos WHERE id = ?1",
+            params![producto_id],
+            |r| r.get(0),
+        )
+        .map_err(|_| "Producto no encontrado.".to_string())?;
+    if !codigo.trim().is_empty() {
+        let duplicado: Option<String> = conn
+            .query_row(
+                "SELECT nombre FROM productos
+                 WHERE codigo_barras = ?1 AND activo = 1 AND id != ?2",
+                params![codigo.trim(), producto_id],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some(nombre) = duplicado {
+            return Err(format!(
+                "No se puede restaurar: el código {codigo} ya lo usa \"{nombre}\"."
+            ));
+        }
+    }
+    conn.execute(
+        "UPDATE productos SET activo = 1, updated_at = ?1 WHERE id = ?2",
+        params![db::now(), producto_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn eliminar_producto(state: State<AppState>, producto_id: i64) -> Result<(), String> {
+    require_roles(&state, &["admin"])?;
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let ventas: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM venta_items WHERE tipo = 'producto' AND referencia_id = ?1",
+            params![producto_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let movimientos: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM movimientos_inv WHERE producto_id = ?1",
+            params![producto_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if ventas > 0 || movimientos > 0 {
+        return Err(
+            "No se puede eliminar: el producto tiene ventas o movimientos registrados. Archívelo para ocultarlo sin perder el historial."
+                .into(),
+        );
+    }
+    conn.execute("DELETE FROM productos WHERE id = ?1", params![producto_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn map_sql_error(e: rusqlite::Error) -> String {

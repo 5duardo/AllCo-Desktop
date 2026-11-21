@@ -24,3 +24,6 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 bcrypt = "0.16"
 chrono = { version = "0.4", features = ["serde"] }
 sysinfo = "0.33"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Devices", "Win32_Devices_DeviceAndDriverInstallation", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Printing", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_IO"] }

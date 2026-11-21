@@ -1,5 +1,16 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { ArrowDownUp, History, LayoutGrid, List, Package, Plus, Search } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowDownUp,
+  History,
+  LayoutGrid,
+  List,
+  Package,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { fechaHora, lempiras } from "@/lib/format";
@@ -31,31 +42,53 @@ const emptyForm = {
 };
 
 const VISTA_KEY = "allco-inventario-vista";
-type Vista = "tabla" | "cajas";
+type Vista = "tabla" | "cajas" | "movimientos";
+type Estado = "activos" | "archivados" | "todos";
+type Confirmacion = { tipo: "archivar" | "restaurar" | "eliminar"; p: Producto };
+
+const PARECE_CODIGO = /^[0-9A-Za-z-]{4,}$/;
 
 export function InventarioPage() {
   const { user } = useAuth();
   const isAdmin = user?.rol === "admin";
-  const [vista, setVista] = useState<Vista>(() =>
-    localStorage.getItem(VISTA_KEY) === "cajas" ? "cajas" : "tabla",
-  );
+  const [vista, setVista] = useState<Vista>(() => {
+    const v = localStorage.getItem(VISTA_KEY);
+    return v === "cajas" || v === "movimientos" ? v : "tabla";
+  });
+  const [estado, setEstado] = useState<Estado>("activos");
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Producto[]>([]);
   const [proveedores, setProveedores] = useState<CatalogoSimple[]>([]);
   const [sucursales, setSucursales] = useState<CatalogoSimple[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [open, setOpen] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [guardando, setGuardando] = useState(false);
   const [mov, setMov] = useState<Producto | null>(null);
+  const [movOpen, setMovOpen] = useState(false);
+  const [movLibre, setMovLibre] = useState(false);
+  const [movProductos, setMovProductos] = useState<Producto[]>([]);
   const [movTipo, setMovTipo] = useState("entrada");
   const [movCant, setMovCant] = useState(1);
   const [movMotivo, setMovMotivo] = useState("");
+  const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
+  const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
   const [kardexOpen, setKardexOpen] = useState(false);
   const [kardexRows, setKardexRows] = useState<Movimiento[]>([]);
+  const [confirm, setConfirm] = useState<Confirmacion | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
   const [error, setError] = useState("");
+  const [aviso, setAviso] = useState("");
+  const [codigoNoEncontrado, setCodigoNoEncontrado] = useState<string | null>(null);
+  const barcodeRef = useRef<HTMLInputElement>(null);
+  const nombreRef = useRef<HTMLInputElement>(null);
+  const guardarOtro = useRef(false);
 
   async function load() {
     const [p, pr, su] = await Promise.all([
-      api.listarProductos(q, false),
+      api.listarProductos(q.trim(), estado),
       api.listarProveedores(),
       api.listarSucursales(),
     ]);
@@ -65,21 +98,94 @@ export function InventarioPage() {
   }
 
   useEffect(() => {
-    load().catch((e) => setError(String(e)));
+    Promise.all([api.listarProveedores(), api.listarSucursales()])
+      .then(([pr, su]) => {
+        setProveedores(pr);
+        setSucursales(su);
+      })
+      .catch((e) => setError(String(e)));
   }, []);
 
-  async function search(e: FormEvent) {
-    e.preventDefault();
+  // Filtra mientras se escribe; Enter (o el escáner) busca de inmediato.
+  useEffect(() => {
+    if (vista === "movimientos") return;
+    const t = window.setTimeout(() => {
+      void buscar(q.trim());
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [q, estado, vista]);
+
+  // Carga el historial al entrar a la vista de movimientos o cambiar las fechas.
+  useEffect(() => {
+    if (vista !== "movimientos") return;
+    cargarMovimientos().catch((e) => setError(String(e)));
+  }, [vista, desde, hasta]);
+
+  // Enfoca el campo correcto al abrir el modal para que el lector de
+  // código de barras (teclado HID) escriba ahí sin necesidad de hacer clic.
+  useEffect(() => {
+    if (!open) return;
+    const t = window.setTimeout(() => {
+      const target = form.id ? nombreRef.current : barcodeRef.current;
+      target?.focus();
+      target?.select();
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
+  async function buscar(query: string, escaneo = false) {
     try {
-      setRows(await api.listarProductos(q, false));
+      setError("");
+      if (escaneo && PARECE_CODIGO.test(query)) {
+        void api.registrarEscaneo(query).catch(() => {});
+      }
+      const encontrados = await api.listarProductos(query, estado);
+      setRows(encontrados);
+      setAviso(
+        escaneo && encontrados.length === 1 && encontrados[0].codigo_barras === query
+          ? `Código ${query} encontrado: ${encontrados[0].nombre}`
+          : "",
+      );
+      setCodigoNoEncontrado(
+        escaneo &&
+          encontrados.length === 0 &&
+          estado !== "archivados" &&
+          PARECE_CODIGO.test(query)
+          ? query
+          : null,
+      );
     } catch (err) {
       setError(String(err));
     }
   }
 
-  function edit(p?: Producto) {
+  function search(e: FormEvent) {
+    e.preventDefault();
+    if (vista === "movimientos") return;
+    void buscar(q.trim(), true);
+  }
+
+  async function cargarMovimientos() {
+    setMovimientos(await api.kardex(null, desde, hasta));
+  }
+
+  function sucursalDefault() {
+    return (
+      sucursales.find((s) => s.nombre.trim().toLowerCase() === "principal")?.id ??
+      sucursales[0]?.id ??
+      1
+    );
+  }
+
+  function edit(p?: Producto, codigoInicial = "") {
+    setFormError("");
     if (!p) {
-      setForm({ ...emptyForm, proveedor_id: proveedores[0]?.id ?? 1, sucursal_id: sucursales[0]?.id ?? 1 });
+      setForm({
+        ...emptyForm,
+        codigo_barras: codigoInicial,
+        proveedor_id: proveedores[0]?.id ?? 1,
+        sucursal_id: sucursalDefault(),
+      });
     } else {
       setForm({
         id: p.id,
@@ -102,14 +208,42 @@ export function InventarioPage() {
     setOpen(true);
   }
 
+  function onCodigoKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (form.codigo_barras.trim()) {
+      void api.registrarEscaneo(form.codigo_barras.trim()).catch(() => {});
+    }
+    nombreRef.current?.focus();
+  }
+
   async function save(e: FormEvent) {
     e.preventDefault();
+    const otro = guardarOtro.current;
+    guardarOtro.current = false;
+    setGuardando(true);
+    setFormError("");
     try {
       await api.guardarProducto(form);
-      setOpen(false);
+      setCodigoNoEncontrado(null);
       await load();
+      if (otro) {
+        setAviso(`"${form.nombre}" guardado. Escanee el siguiente producto.`);
+        setForm({
+          ...emptyForm,
+          marca: form.marca,
+          proveedor_id: form.proveedor_id,
+          sucursal_id: form.sucursal_id,
+          stock_minimo: form.stock_minimo,
+        });
+        barcodeRef.current?.focus();
+      } else {
+        setOpen(false);
+      }
     } catch (err) {
-      setError(String(err));
+      setFormError(String(err));
+    } finally {
+      setGuardando(false);
     }
   }
 
@@ -118,10 +252,41 @@ export function InventarioPage() {
     if (!mov) return;
     try {
       await api.movimientoInventario(mov.id, movTipo, movCant, movMotivo);
+      setAviso(
+        `${movTipo === "ajuste" ? "Ajuste" : movTipo === "entrada" ? "Entrada" : "Salida"} de ${movCant} · ${mov.nombre}`,
+      );
+      setMovOpen(false);
       setMov(null);
+      await load();
+      if (vista === "movimientos") await cargarMovimientos();
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
+  async function ejecutarConfirmacion() {
+    if (!confirm) return;
+    setConfirmBusy(true);
+    setError("");
+    try {
+      const { tipo, p } = confirm;
+      if (tipo === "archivar") await api.archivarProducto(p.id);
+      if (tipo === "restaurar") await api.restaurarProducto(p.id);
+      if (tipo === "eliminar") await api.eliminarProducto(p.id);
+      setAviso(
+        tipo === "archivar"
+          ? `"${p.nombre}" archivado. Ya no aparece en caja ni en el inventario activo.`
+          : tipo === "restaurar"
+            ? `"${p.nombre}" restaurado.`
+            : `"${p.nombre}" eliminado definitivamente.`,
+      );
+      setConfirm(null);
       await load();
     } catch (err) {
       setError(String(err));
+      setConfirm(null);
+    } finally {
+      setConfirmBusy(false);
     }
   }
 
@@ -141,8 +306,124 @@ export function InventarioPage() {
 
   function abrirMovimiento(p: Producto) {
     setMov(p);
+    setMovLibre(false);
+    setMovOpen(true);
     setMovCant(1);
     setMovMotivo("");
+  }
+
+  async function abrirMovimientoLibre() {
+    try {
+      const ps = await api.listarProductos("", "activos");
+      setMovProductos(ps);
+      setMov(ps[0] ?? null);
+      setMovLibre(true);
+      setMovOpen(true);
+      setMovTipo("entrada");
+      setMovCant(1);
+      setMovMotivo("");
+    } catch (err) {
+      setError(String(err));
+    }
+  }
+
+  function acciones(p: Producto) {
+    return (
+      <>
+        <Button size="sm" variant="outline" onClick={() => edit(p)}>
+          Editar
+        </Button>
+        {p.activo ? (
+          <Button size="sm" variant="secondary" onClick={() => abrirMovimiento(p)}>
+            <ArrowDownUp className="h-3.5 w-3.5" />
+            Mover
+          </Button>
+        ) : null}
+        <Button size="sm" variant="ghost" onClick={() => openKardex(p)}>
+          Kardex
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          title={p.activo ? "Archivar producto" : "Restaurar producto"}
+          onClick={() => setConfirm({ tipo: p.activo ? "archivar" : "restaurar", p })}
+        >
+          {p.activo ? (
+            <>
+              <Archive className="h-3.5 w-3.5" />
+              Archivar
+            </>
+          ) : (
+            <>
+              <ArchiveRestore className="h-3.5 w-3.5" />
+              Restaurar
+            </>
+          )}
+        </Button>
+        {isAdmin ? (
+          <Button
+            size="sm"
+            variant="dangerSoft"
+            title="Eliminar producto"
+            onClick={() => setConfirm({ tipo: "eliminar", p })}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+      </>
+    );
+  }
+
+  const margen =
+    isAdmin && form.costo > 0 && form.precio_venta > 0
+      ? ((form.precio_venta - form.costo) / form.costo) * 100
+      : null;
+
+  const movimientosFiltrados = movimientos.filter((m) => {
+    if (filtroTipo !== "todos" && m.tipo !== filtroTipo) return false;
+    const texto = q.trim().toLowerCase();
+    if (!texto) return true;
+    return (
+      m.producto_nombre.toLowerCase().includes(texto) ||
+      m.motivo.toLowerCase().includes(texto) ||
+      m.usuario_nombre.toLowerCase().includes(texto)
+    );
+  });
+
+  function tablaMovimientos(lista: Movimiento[]) {
+    if (lista.length === 0) {
+      return <p className="empty-state">Sin movimientos registrados.</p>;
+    }
+    return (
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Producto</th>
+            <th>Tipo</th>
+            <th className="num">Cant.</th>
+            <th>Usuario</th>
+            <th>Motivo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lista.map((m) => (
+            <tr key={m.id}>
+              <td className="whitespace-nowrap text-fg-muted">{fechaHora(m.fecha)}</td>
+              <td className="font-medium">{m.producto_nombre}</td>
+              <td>
+                <Badge tone={m.tipo === "entrada" ? "ok" : m.tipo === "salida" ? "danger" : "accent"}>
+                  {m.tipo}
+                </Badge>
+              </td>
+              <td className="num font-semibold">{m.cantidad}</td>
+              <td>{m.usuario_nombre}</td>
+              <td className="text-fg-muted">{m.motivo}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
   }
 
   return (
@@ -152,12 +433,16 @@ export function InventarioPage() {
         subtitle="Productos y existencias · kardex y stock mínimo"
         description="Registra productos, controla entradas y salidas, revisa el stock mínimo y consulta el kardex de cada artículo."
         icon={Package}
-        badge={`${rows.length} productos`}
+        badge={
+          vista === "movimientos"
+            ? `${movimientosFiltrados.length} movimientos`
+            : `${rows.length} productos`
+        }
       />
       <div className="mb-4 flex flex-wrap justify-end gap-2">
-        <Button variant="outline" onClick={() => openKardex()}>
-          <History className="h-4 w-4" />
-          Kardex general
+        <Button variant="outline" onClick={() => abrirMovimientoLibre()}>
+          <ArrowDownUp className="h-4 w-4" />
+          Nuevo movimiento
         </Button>
         <Button onClick={() => edit()}>
           <Plus className="h-4 w-4" />
@@ -165,6 +450,7 @@ export function InventarioPage() {
         </Button>
       </div>
       {error ? <Alert>{error}</Alert> : null}
+      {aviso ? <Alert tone="ok">{aviso}</Alert> : null}
 
       <Card className="mb-4 p-3">
         <form onSubmit={search} className="flex flex-wrap items-center gap-2">
@@ -173,10 +459,31 @@ export function InventarioPage() {
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar por nombre, código, marca o medida"
+              placeholder={
+                vista === "movimientos"
+                  ? "Filtrar por producto, motivo o usuario"
+                  : "Escanee el código de barras o busque por nombre, marca o medida"
+              }
               className="pl-10"
+              autoFocus
+              aria-label="Buscar o escanear producto"
             />
           </div>
+          {vista !== "movimientos" ? (
+            <div className="seg" role="group" aria-label="Estado de los productos">
+              {(["activos", "archivados", "todos"] as Estado[]).map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => setEstado(e)}
+                  aria-pressed={estado === e}
+                  className={cn("seg-item", estado === e && "seg-item-active")}
+                >
+                  {e === "activos" ? "Activos" : e === "archivados" ? "Archivados" : "Todos"}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="seg" role="group" aria-label="Vista de inventario">
             <button
               type="button"
@@ -196,14 +503,73 @@ export function InventarioPage() {
               <LayoutGrid className="h-4 w-4" />
               Cajas
             </button>
+            <button
+              type="button"
+              onClick={() => cambiarVista("movimientos")}
+              aria-pressed={vista === "movimientos"}
+              className={cn("seg-item", vista === "movimientos" && "seg-item-active")}
+            >
+              <History className="h-4 w-4" />
+              Movimientos
+            </button>
           </div>
-          <Button type="submit" variant="secondary">
-            Buscar
-          </Button>
         </form>
       </Card>
 
-      {vista === "tabla" ? (
+      {vista !== "movimientos" && codigoNoEncontrado ? (
+        <Alert tone="warn" className="mb-4">
+          <span>
+            No hay ningún producto con el código <strong>{codigoNoEncontrado}</strong>.{" "}
+            <button
+              type="button"
+              className="font-semibold underline underline-offset-2"
+              onClick={() => edit(undefined, codigoNoEncontrado)}
+            >
+              Crear producto con este código
+            </button>
+          </span>
+        </Alert>
+      ) : null}
+
+      {vista === "movimientos" ? (
+        <Card className="overflow-x-auto">
+          <div className="flex flex-wrap items-end gap-3 border-b border-border p-3">
+            <div>
+              <Label>Tipo</Label>
+              <Select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="w-40">
+                <option value="todos">Todos</option>
+                <option value="entrada">Entradas</option>
+                <option value="salida">Salidas</option>
+                <option value="ajuste">Ajustes</option>
+              </Select>
+            </div>
+            <div>
+              <Label>Desde</Label>
+              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </div>
+            <div>
+              <Label>Hasta</Label>
+              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </div>
+            {desde || hasta ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDesde("");
+                  setHasta("");
+                }}
+              >
+                Limpiar fechas
+              </Button>
+            ) : null}
+            <span className="ml-auto pb-2 text-sm text-fg-muted">
+              {movimientosFiltrados.length} movimientos
+            </span>
+          </div>
+          {tablaMovimientos(movimientosFiltrados)}
+        </Card>
+      ) : vista === "tabla" ? (
         <Card className="overflow-x-auto">
           <table className="table">
             <thead>
@@ -220,7 +586,7 @@ export function InventarioPage() {
             </thead>
             <tbody>
               {rows.map((p) => (
-                <tr key={p.id}>
+                <tr key={p.id} className={p.activo ? undefined : "opacity-60"}>
                   <td>
                     <p className="font-medium">{p.nombre}</p>
                     <p className="text-xs text-fg-muted">
@@ -238,20 +604,11 @@ export function InventarioPage() {
                       <span className="font-semibold">{p.stock}</span>
                     )}
                   </td>
-                  <td>{p.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
                   <td>
-                    <div className="flex justify-end gap-1.5">
-                      <Button size="sm" variant="outline" onClick={() => edit(p)}>
-                        Editar
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={() => abrirMovimiento(p)}>
-                        <ArrowDownUp className="h-3.5 w-3.5" />
-                        Mover
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => openKardex(p)}>
-                        Kardex
-                      </Button>
-                    </div>
+                    {p.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Archivado</Badge>}
+                  </td>
+                  <td>
+                    <div className="flex flex-wrap justify-end gap-1.5">{acciones(p)}</div>
                   </td>
                 </tr>
               ))}
@@ -268,7 +625,7 @@ export function InventarioPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {rows.map((p) => (
-            <Card key={p.id} className="flex h-full flex-col p-4">
+            <Card key={p.id} className={cn("flex h-full flex-col p-4", !p.activo && "opacity-70")}>
               <div className="flex items-start gap-3">
                 <span className="icon-chip">
                   <Package className="h-5 w-5" />
@@ -279,7 +636,7 @@ export function InventarioPage() {
                     {p.marca} {p.modelo}
                   </p>
                 </div>
-                {p.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Inactivo</Badge>}
+                {p.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Archivado</Badge>}
               </div>
 
               <div className="mt-4 flex items-end justify-between gap-3">
@@ -317,18 +674,7 @@ export function InventarioPage() {
                 {p.codigo_barras || "Sin código de barras"}
               </p>
 
-              <div className="mt-auto flex flex-wrap gap-2 pt-4">
-                <Button size="sm" variant="outline" onClick={() => edit(p)}>
-                  Editar
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => abrirMovimiento(p)}>
-                  <ArrowDownUp className="h-3.5 w-3.5" />
-                  Mover
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => openKardex(p)}>
-                  Kardex
-                </Button>
-              </div>
+              <div className="mt-auto flex flex-wrap gap-2 pt-4">{acciones(p)}</div>
             </Card>
           ))}
         </div>
@@ -337,22 +683,45 @@ export function InventarioPage() {
       <Modal
         open={open}
         title={form.id ? "Editar producto" : "Nuevo producto"}
-        subtitle={form.id ? `Ficha #${form.id}` : "Registre un producto nuevo"}
+        subtitle={
+          form.id
+            ? `Ficha #${form.id}`
+            : "Escanee el código de barras y complete los datos. Enter pasa al nombre."
+        }
         onClose={() => setOpen(false)}
         wide
       >
         <form onSubmit={save} className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <Label>Nombre</Label>
-            <Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
-          </div>
+          {formError ? (
+            <div className="col-span-2">
+              <Alert>{formError}</Alert>
+            </div>
+          ) : null}
           <div>
             <Label>Código de barras</Label>
-            <Input value={form.codigo_barras} onChange={(e) => setForm({ ...form, codigo_barras: e.target.value })} />
+            <Input
+              ref={barcodeRef}
+              value={form.codigo_barras}
+              onChange={(e) => setForm({ ...form, codigo_barras: e.target.value.trim() })}
+              onKeyDown={onCodigoKeyDown}
+              placeholder="Escanee o escriba el código"
+              autoFocus={!form.id}
+              className="font-mono"
+            />
           </div>
           <div>
             <Label>SKU</Label>
             <Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+          </div>
+          <div className="col-span-2">
+            <Label>Nombre</Label>
+            <Input
+              ref={nombreRef}
+              value={form.nombre}
+              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+              autoFocus={!!form.id}
+              required
+            />
           </div>
           <div>
             <Label>Marca</Label>
@@ -395,22 +764,27 @@ export function InventarioPage() {
           {isAdmin ? (
             <div>
               <Label>Costo (L)</Label>
-              <Input type="number" step="0.01" value={form.costo} onChange={(e) => setForm({ ...form, costo: Number(e.target.value) })} />
+              <Input type="number" min={0} step="0.01" value={form.costo} onChange={(e) => setForm({ ...form, costo: Number(e.target.value) })} />
             </div>
           ) : null}
           <div>
             <Label>Precio de venta (L)</Label>
-            <Input type="number" step="0.01" value={form.precio_venta} onChange={(e) => setForm({ ...form, precio_venta: Number(e.target.value) })} />
+            <Input type="number" min={0} step="0.01" value={form.precio_venta} onChange={(e) => setForm({ ...form, precio_venta: Number(e.target.value) })} required />
+            {margen != null ? (
+              <p className="mt-1 text-xs text-fg-muted">
+                Ganancia {lempiras(form.precio_venta - form.costo)} · margen {margen.toFixed(0)}%
+              </p>
+            ) : null}
           </div>
           {!form.id ? (
             <div>
               <Label>Stock inicial</Label>
-              <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} />
+              <Input type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: Number(e.target.value) })} />
             </div>
           ) : null}
           <div>
             <Label>Stock mínimo</Label>
-            <Input type="number" value={form.stock_minimo} onChange={(e) => setForm({ ...form, stock_minimo: Number(e.target.value) })} />
+            <Input type="number" min={0} value={form.stock_minimo} onChange={(e) => setForm({ ...form, stock_minimo: Number(e.target.value) })} />
           </div>
           <div className="flex items-end pb-2">
             <label className="flex items-center gap-2 text-sm font-medium">
@@ -418,20 +792,112 @@ export function InventarioPage() {
               Producto activo
             </label>
           </div>
-          <div className="col-span-2 mt-1 flex justify-end gap-2 pt-2">
+          <div className="col-span-2 mt-1 flex flex-wrap justify-end gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button type="submit">Guardar producto</Button>
+            {!form.id ? (
+              <Button
+                type="submit"
+                variant="secondary"
+                disabled={guardando}
+                onClick={() => {
+                  guardarOtro.current = true;
+                }}
+              >
+                Guardar y agregar otro
+              </Button>
+            ) : null}
+            <Button type="submit" disabled={guardando}>
+              {guardando ? "Guardando…" : "Guardar producto"}
+            </Button>
           </div>
         </form>
       </Modal>
 
       <Modal
-        open={!!mov}
-        title={`Movimiento · ${mov?.nombre ?? ""}`}
+        open={!!confirm}
+        title={
+          confirm?.tipo === "eliminar"
+            ? "Eliminar producto"
+            : confirm?.tipo === "archivar"
+              ? "Archivar producto"
+              : "Restaurar producto"
+        }
+        subtitle={confirm?.p.nombre}
+        onClose={() => setConfirm(null)}
+      >
+        {confirm ? (
+          <div className="space-y-4">
+            {confirm.tipo === "eliminar" ? (
+              <Alert tone="warn">
+                Se eliminará definitivamente <strong>{confirm.p.nombre}</strong>. Solo es posible si
+                no tiene ventas ni movimientos; si ya tiene historial, use <strong>Archivar</strong>.
+                Esta acción no se puede deshacer.
+              </Alert>
+            ) : confirm.tipo === "archivar" ? (
+              <p className="text-sm text-fg-muted">
+                <strong>{confirm.p.nombre}</strong> dejará de aparecer en caja y en el inventario
+                activo. Su stock ({confirm.p.stock}) y su historial se conservan, y puede
+                restaurarlo cuando quiera desde el filtro <strong>Archivados</strong>.
+              </p>
+            ) : (
+              <p className="text-sm text-fg-muted">
+                <strong>{confirm.p.nombre}</strong> volverá a estar disponible en caja y en el
+                inventario activo con su stock actual ({confirm.p.stock}).
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant={confirm.tipo === "eliminar" ? "default" : "ghost"}
+                autoFocus={confirm.tipo === "eliminar"}
+                onClick={() => setConfirm(null)}
+                disabled={confirmBusy}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant={confirm.tipo === "eliminar" ? "dangerSoft" : "default"}
+                onClick={ejecutarConfirmacion}
+                disabled={confirmBusy}
+              >
+                {confirmBusy
+                  ? "Procesando…"
+                  : confirm.tipo === "eliminar"
+                    ? "Eliminar definitivamente"
+                    : confirm.tipo === "archivar"
+                      ? "Archivar"
+                      : "Restaurar"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={movOpen}
+        title={movLibre ? "Nuevo movimiento de stock" : `Movimiento · ${mov?.nombre ?? ""}`}
         subtitle={`Stock actual: ${mov?.stock ?? 0} unidades`}
-        onClose={() => setMov(null)}
+        onClose={() => setMovOpen(false)}
       >
         <form onSubmit={applyMov} className="space-y-4">
+          {movLibre ? (
+            <div>
+              <Label>Producto</Label>
+              <Select
+                value={mov?.id ?? ""}
+                onChange={(e) => {
+                  const p = movProductos.find((x) => x.id === Number(e.target.value));
+                  setMov(p ?? null);
+                }}
+              >
+                {movProductos.length === 0 ? <option value="">No hay productos activos</option> : null}
+                {movProductos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre} {p.medida} · stock {p.stock}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
           <div>
             <Label>Tipo</Label>
             <Select value={movTipo} onChange={(e) => setMovTipo(e.target.value)}>
@@ -448,43 +914,14 @@ export function InventarioPage() {
             <Label>Motivo</Label>
             <Input value={movMotivo} onChange={(e) => setMovMotivo(e.target.value)} required />
           </div>
-          <Button type="submit" className="w-full" size="lg">Aplicar movimiento</Button>
+          <Button type="submit" className="w-full" size="lg" disabled={!mov}>
+            Aplicar movimiento
+          </Button>
         </form>
       </Modal>
 
       <Modal open={kardexOpen} title="Kardex" subtitle="Historial de movimientos de inventario" onClose={() => setKardexOpen(false)} wide>
-        {kardexRows.length === 0 ? (
-          <p className="empty-state">Sin movimientos registrados.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Producto</th>
-                <th>Tipo</th>
-                <th className="num">Cant.</th>
-                <th>Usuario</th>
-                <th>Motivo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {kardexRows.map((m) => (
-                <tr key={m.id}>
-                  <td className="whitespace-nowrap text-fg-muted">{fechaHora(m.fecha)}</td>
-                  <td className="font-medium">{m.producto_nombre}</td>
-                  <td>
-                    <Badge tone={m.tipo === "entrada" ? "ok" : m.tipo === "salida" ? "danger" : "accent"}>
-                      {m.tipo}
-                    </Badge>
-                  </td>
-                  <td className="num font-semibold">{m.cantidad}</td>
-                  <td>{m.usuario_nombre}</td>
-                  <td className="text-fg-muted">{m.motivo}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        {tablaMovimientos(kardexRows)}
       </Modal>
     </div>
   );

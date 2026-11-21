@@ -18,6 +18,7 @@ pub struct AppState {
     pub sesion_inicio: Mutex<Option<String>>,
     pub started_at: String,
     pub last_scan: Mutex<Option<String>>,
+    pub dispositivos_cache: Mutex<crate::commands::dispositivos::DispositivosCache>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -74,6 +75,7 @@ pub fn run() {
                 sesion_inicio: Mutex::new(None),
                 started_at: db::now(),
                 last_scan: Mutex::new(None),
+                dispositivos_cache: Mutex::new(Default::default()),
             });
             Ok(())
         })
@@ -83,11 +85,19 @@ pub fn run() {
             sesion_actual,
             usuarios_login,
             registrar_escaneo,
+            listar_dispositivos,
+            actualizar_dispositivos,
+            guardar_impresora_ticket,
+            imprimir_prueba,
+            imprimir_factura,
             listar_proveedores,
             listar_sucursales,
             listar_productos,
             buscar_producto_codigo,
             guardar_producto,
+            archivar_producto,
+            restaurar_producto,
+            eliminar_producto,
             movimiento_inventario,
             kardex,
             listar_servicios,

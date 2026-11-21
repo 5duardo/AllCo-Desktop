@@ -51,8 +51,10 @@ export function LoginPage() {
     api
       .usuariosLogin()
       .then((list) => {
-        setUsuarios(list);
-        const def = list.find((u) => u.usuario === "admin") ?? list[0];
+        // El acceso de soporte (dev) siempre va de último en la lista.
+        const ordenados = [...list].sort((a, b) => Number(a.dev) - Number(b.dev));
+        setUsuarios(ordenados);
+        const def = ordenados.find((u) => u.usuario === "admin") ?? ordenados[0];
         if (def) setUsuario(def.usuario);
       })
       .catch((e) => setError(`No se pudo cargar la lista de usuarios: ${e}`));
@@ -190,8 +192,12 @@ export function LoginPage() {
                     <option value="">Cargando usuarios…</option>
                   ) : (
                     usuarios.map((u) => (
-                      <option key={u.id} value={u.usuario}>
-                        {u.nombre} · {u.dev ? "Desarrollador" : rolLabel(u.rol)}
+                      <option
+                        key={u.id}
+                        value={u.usuario}
+                        className={u.dev ? "italic text-fg-faint" : undefined}
+                      >
+                        {u.dev ? "Soporte AllCo" : `${u.nombre} · ${rolLabel(u.rol)}`}
                       </option>
                     ))
                   )}

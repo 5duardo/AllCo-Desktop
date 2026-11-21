@@ -7,6 +7,7 @@ import { DashboardPage } from "@/pages/Dashboard";
 import { PosPage } from "@/pages/Pos";
 import { ClientesPage } from "@/pages/Clientes";
 import { InventarioPage } from "@/pages/Inventario";
+import { DispositivosPage } from "@/pages/Dispositivos";
 import { ServiciosPage } from "@/pages/Servicios";
 import { ReportesPage } from "@/pages/Reportes";
 import { UsuariosPage } from "@/pages/Usuarios";
@@ -58,6 +59,7 @@ export default function App() {
               <Route element={<Protected roles={["admin", "caja"]} />}>
                 <Route path="/pos" element={<PosPage />} />
                 <Route path="/clientes" element={<ClientesPage />} />
+                <Route path="/dispositivos" element={<DispositivosPage />} />
               </Route>
               <Route element={<Protected roles={["admin", "bodega"]} />}>
                 <Route path="/inventario" element={<InventarioPage />} />
