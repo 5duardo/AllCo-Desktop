@@ -1,0 +1,329 @@
+# Sistema de Inventario con Código de Barras — Llantera y Car Wash El Centro
+
+Documento de requerimientos para el desarrollo del sistema. Este archivo da contexto completo a un asistente de código (Claude Code u otro) antes de construir el proyecto.
+
+**Versión:** 1.1  
+**Cliente:** Llantera y Car Wash El Centro (Honduras)  
+**Desarrollado por:** HYPED  
+**Plataforma:** Escritorio Windows (no web), 100% offline
+
+---
+
+## 1. Resumen del proyecto
+
+Aplicación de **escritorio para Windows** para gestionar el inventario de una llantera y los servicios de un car wash, con lectura de código de barras, punto de venta simple y reportes básicos.
+
+Debe funcionar **sin internet**. La conexión solo se usa para:
+
+- Actualizaciones automáticas (opcionales)
+- Respaldos remotos de la base de datos (opcionales)
+
+---
+
+## 2. Objetivos
+
+1. Registrar y controlar stock de llantas (entradas, salidas, stock mínimo) de forma rápida con lector de código de barras.
+2. Cobrar en caja llantas, servicios de car wash y productos adicionales, e imprimir ticket.
+3. Dar al administrador visibilidad de ventas, inventario y **estado de uso del sistema** (salud, actividad, periféricos).
+4. Operar en una PC de gama media/baja, sin servidor ni internet diario.
+
+---
+
+## 3. Alcance funcional
+
+### 3.1 Inventario de llantas
+
+- Alta, edición y baja lógica de productos.
+- Campos: marca, medida, modelo, DOT, proveedor, costo, precio de venta, stock, stock mínimo, sucursal/bodega, SKU y código de barras.
+- Entradas y salidas por escaneo o captura manual.
+- Kardex: historial de movimientos por producto (quién, cuándo, cuánto, motivo).
+- Alerta visual cuando el stock llega al mínimo.
+
+### 3.2 Servicios de car wash
+
+- Catálogo de servicios (lavado, encerado, combos) con precio y tiempo estimado.
+- Registro de servicios vendidos desde el POS (mismo ticket que productos).
+
+### 3.3 Escaneo de código de barras
+
+- Lector USB tipo teclado (HID). No requiere driver ni código nativo especial.
+- En POS e inventario: un input enfocado; el lector envía el código + `Enter`.
+- Formatos: EAN-13, EAN-8, UPC-A/E, Code 39, Code 128, Code 93 (Steren COM-596).
+
+### 3.4 Punto de venta (POS)
+
+- Venta de llantas, servicios y productos adicionales en un mismo ticket.
+- Métodos de pago: efectivo, tarjeta, transferencia (configurable).
+- Cálculo de cambio en efectivo.
+- Impresión de ticket térmico al confirmar la venta.
+- Descuento por línea o por ticket (solo admin, o caja si el admin lo habilita).
+- Anulación de venta: solo admin, con motivo obligatorio.
+
+### 3.5 Reportes
+
+- Ventas por día, semana y mes (totales, por usuario, por sucursal, por método de pago).
+- Kardex por producto y por rango de fechas.
+- Productos bajo stock mínimo.
+- Servicios más vendidos.
+
+### 3.6 Roles de usuario
+
+| Rol | Acceso |
+|---|---|
+| `admin` | Todo: usuarios, precios, costos, anulación de ventas, configuración, respaldos, **status de uso del sistema** |
+| `bodega` | Inventario, entradas/salidas, kardex, catálogo de productos. Sin POS ni reportes de ventas ni costos |
+| `caja` | POS, consulta de stock y precio de venta. Sin editar precios, costos ni usuarios |
+
+- Login con usuario + contraseña.
+- Un usuario inactivo no puede entrar.
+- Cada acción sensible (venta, movimiento, anulación) queda asociada al usuario de la sesión.
+
+### 3.7 Panel operativo (dashboard)
+
+Resumen del negocio para el día/semana, visible según rol:
+
+- Ventas del día y de la semana
+- Ticket promedio
+- Productos bajo stock mínimo
+- Últimas ventas
+- Accesos rápidos a POS, inventario y reportes
+
+El dashboard operativo **no sustituye** el status de uso del sistema (sección 4), que es exclusivo de admin.
+
+---
+
+## 4. Status de uso del sistema (solo admin)
+
+Pantalla exclusiva del rol `admin` para ver **cómo está operando la instalación**: salud técnica, actividad reciente y periféricos. No es un reporte de negocio; es el monitor del sistema.
+
+### 4.1 Qué debe mostrar
+
+**Salud de la instalación**
+
+- Versión instalada de la app y si hay actualización pendiente
+- Tamaño del archivo SQLite y espacio libre en disco de la PC
+- Fecha/hora del último respaldo local y del último respaldo remoto (si está habilitado)
+- Estado del respaldo: al día / atrasado / fallido (con el error resumido)
+- Tiempo que lleva abierta la sesión actual y hora del último arranque de la app
+
+**Actividad de uso**
+
+- Usuarios activos hoy (quién inició sesión y a qué hora)
+- Últimos inicios de sesión (usuario, rol, fecha, éxito/fallo)
+- Conteos del día: ventas, ítems vendidos, movimientos de inventario, tickets impresos
+- Conteos históricos: total de productos, servicios, usuarios activos, ventas del mes
+- Últimos errores de impresión, respaldo o actualización (mensaje corto + hora)
+
+**Periféricos**
+
+- Impresora térmica: lista / no detectada / error de impresión (último intento)
+- Lector de código de barras: no se “detecta” por USB (es HID), pero se muestra si hubo un escaneo reciente y hace cuánto
+- Indicador de conexión a internet: solo informativo (para saber si se puede actualizar o respaldar)
+
+**Alertas del sistema** (no de inventario)
+
+- Disco con menos de 2 GB libres
+- Base de datos por encima de un umbral configurable (default 500 MB) — avisar para compactar/respaldar
+- Respaldo no ejecutado en más de N días (default 7)
+- Actualización disponible y no aplicada
+- Fallos consecutivos de impresión
+
+### 4.2 Acciones desde esta pantalla (admin)
+
+- Disparar respaldo local ahora (copia del `.db` a una carpeta elegida)
+- Disparar respaldo remoto ahora (si hay internet y está configurado)
+- Abrir la carpeta de la base de datos / de respaldos locales
+- Ver bitácora de eventos del sistema (filtro por fecha y tipo)
+- Forzar chequeo de actualización
+
+No se administran usuarios ni se edita inventario desde aquí; solo se observa y se disparan tareas de mantenimiento.
+
+### 4.3 Bitácora de sistema
+
+Tabla `eventos_sistema` (ver modelo de datos) con al menos:
+
+- `login_ok` / `login_fail`
+- `logout`
+- `backup_ok` / `backup_fail`
+- `update_check` / `update_applied` / `update_fail`
+- `print_ok` / `print_fail`
+- `app_start` / `app_exit`
+
+Cada evento: tipo, usuario (si aplica), mensaje, fecha, datos extra en JSON opcional.
+
+### 4.4 Criterios de aceptación
+
+- Un usuario `caja` o `bodega` no ve el menú ni puede invocar los comandos de status (el backend también valida el rol).
+- La pantalla carga en menos de 2 s con la BD local típica (miles de ventas, no millones).
+- Los datos de salud (tamaño de BD, disco, versión) se leen del sistema de archivos / de Tauri, no se inventan en el frontend.
+- Si no hay internet, la pantalla sigue funcionando; los bloques de actualización y respaldo remoto muestran “sin conexión”.
+- El admin puede entender de un vistazo: ¿la caja está operando? ¿se está respaldando? ¿la impresora falló hoy?
+
+---
+
+## 5. Requisitos no funcionales
+
+| ID | Requisito |
+|---|---|
+| NF-1 | Instalación y operación **sin internet** en la PC del negocio |
+| NF-2 | Base de datos **local** (un archivo `.db`); no hay servidor obligatorio |
+| NF-3 | Arranque en menos de ~5 s en el hardware de referencia (ThinkCentre M70q) |
+| NF-4 | UI usable a 1–1.5 m de distancia (caja): botones grandes, alto contraste, teclado + lector |
+| NF-5 | Instalador Windows (`.msi` o `.exe` NSIS), target Win 10/11 x64 |
+| NF-6 | Actualizaciones automáticas opcionales (requieren conexión ocasional) |
+| NF-7 | Respaldo remoto opcional (requiere conexión ocasional) |
+| NF-8 | Contraseñas hasheadas (bcrypt); nunca en texto plano |
+| NF-9 | La app no debe corromper la BD si se cierra a la mitad de una venta (transacción SQLite) |
+| NF-10 | Textos de UI en **español** (Honduras): L, lempiras; fechas `dd/mm/yyyy` |
+
+---
+
+## 6. Stack tecnológico
+
+### App / UI
+
+- **Tauri 2** + **React** + **TypeScript** + **Tailwind CSS** + **shadcn/ui**
+- Frontend en el WebView2 de Windows (no Chromium empaquetado)
+- Backend nativo en **Rust**, expuesto con `#[tauri::command]`
+- Superficie Rust chica: CRUD, impresión ESC/POS, tamaño de archivos, respaldos, versión/updater
+
+### Base de datos local
+
+- **SQLite** vía `tauri-plugin-sql` (`sqlx`)
+- Un archivo `.db` en el directorio de datos de la app (`app_data_dir`)
+- Queries desde React con el plugin JS o `invoke()`
+- Migraciones versionadas desde el arranque de la app
+
+### Lector de código de barras
+
+- USB HID (teclado). En React: `<input>` enfocado, `Enter` cierra el escaneo
+- No hay código Rust ni drivers
+
+### Impresora térmica (SAT Q15T-U, USB, ESC/POS)
+
+- Crate `escpos` / `escpos-rs` en Rust
+- Comando Tauri `imprimir_ticket(datos)`
+- Papel 58 mm, 203 DPI, 100 mm/s, térmica directa (sin tinta)
+- Ticket: nombre del negocio, fecha, ítems, total, método de pago, cajero, pie de página configurable
+
+### Actualizaciones automáticas
+
+- `tauri-plugin-updater`
+- Manifest `.json` + binario en GitHub Releases o hosting (Nodushost / Cloudflare R2)
+- Al abrir, chequea versión y descarga/aplica en segundo plano
+- Parte del plan de soporte mensual (L 500/mes, opcional)
+
+### Respaldo remoto (opcional)
+
+- Comando Rust: comprime el `.db` y lo sube a Cloudflare R2 (`reqwest`)
+- Disparo: cron interno, al cerrar, o manual desde Status de uso
+- Respaldo local siempre disponible aunque el remoto esté desactivado
+
+### Roles y usuarios
+
+- Tabla `usuarios` con `password_hash`
+- Hash en Rust (`bcrypt`) preferible (el secreto no sale al frontend)
+- El frontend oculta pantallas; **Rust rechaza** comandos si el rol de la sesión no tiene permiso
+
+### Empaquetado
+
+- `tauri build` → `.exe` / `.msi` (NSIS o WiX)
+- Code signing recomendado para evitar SmartScreen (sobre todo si se vende a más clientes)
+
+---
+
+## 7. Modelo de datos (borrador)
+
+```
+usuarios            (id, nombre, usuario, password_hash, rol, activo, created_at)
+productos           (id, sku, codigo_barras, nombre, marca, medida, modelo, dot,
+                     proveedor_id, costo, precio_venta, stock, stock_minimo,
+                     sucursal_id, activo, created_at, updated_at)
+proveedores         (id, nombre, contacto, telefono, activo)
+sucursales          (id, nombre, direccion, activo)
+servicios           (id, nombre, descripcion, precio, duracion_min, activo)
+movimientos_inv     (id, producto_id, tipo[entrada|salida|ajuste], cantidad,
+                     motivo, usuario_id, venta_id nullable, fecha)
+ventas              (id, fecha, usuario_id, sucursal_id, total, descuento,
+                     metodo_pago, estado[completada|anulada], motivo_anulacion)
+venta_items         (id, venta_id, tipo[producto|servicio], referencia_id,
+                     cantidad, precio_unitario, descuento)
+sesiones            (id, usuario_id, inicio, fin, exito)
+eventos_sistema     (id, tipo, usuario_id nullable, mensaje, payload_json, fecha)
+configuracion       (clave, valor)  -- nombre negocio, pie ticket, umbrales, R2, etc.
+respaldos           (id, tipo[local|remoto], ruta_o_key, tamano_bytes, exito,
+                     mensaje_error, fecha)
+```
+
+Reglas:
+
+- Bajas lógicas (`activo = 0`); no borrar filas con historial de ventas.
+- `ventas` + `venta_items` + descuento de stock en **una sola transacción**.
+- `codigo_barras` único entre productos activos.
+
+---
+
+## 8. Pantallas / módulos
+
+1. Login
+2. Dashboard operativo
+3. Punto de venta
+4. Inventario (listado, ficha, entradas/salidas)
+5. Servicios (catálogo)
+6. Reportes (ventas, kardex, stock mínimo)
+7. Usuarios (solo admin)
+8. Configuración (solo admin): negocio, ticket, impresora, respaldos, umbrales
+9. **Status de uso del sistema** (solo admin) — sección 4
+
+Navegación por menú lateral. El menú se filtra por rol.
+
+---
+
+## 9. Equipo compatible (referencia)
+
+| Equipo | Modelo | Notas |
+|---|---|---|
+| Lector de código de barras | Steren COM-596 (2.4 GHz / USB) | Plug & Play, batería hasta 10 h |
+| PC | Lenovo ThinkCentre M70q Gen 2 (i5, 8 GB, 256 GB SSD, Win 11 Pro) | App + POS |
+| Impresora de recibos | SAT Q15T-U (USB, térmica, ESC/POS) | 58 mm, 203 DPI |
+
+---
+
+## 10. Fuera de alcance (fase 1)
+
+- Facturación electrónica / SAR (CAI)
+- Sincronización multi-sucursal en tiempo real (cada sucursal = su `.db` local)
+- App móvil
+- Cuentas por cobrar / crédito a clientes
+- Compras a proveedor con orden de compra (solo entrada de inventario)
+- Múltiples cajas concurrentes sobre la misma BD en red (un puesto de caja por instalación)
+
+---
+
+## 11. Supuestos
+
+- Hay **un puesto de caja** por PC / instalación.
+- El lector se usa como teclado; el cajero no necesita apuntar con el mouse al input si este está siempre enfocado en POS.
+- Los precios se expresan en lempiras (HNL), sin decimales de centavos o con 2 decimales — confirmar con el cliente; default: 2 decimales.
+- El admin es quien instala, crea usuarios y revisa el status de uso.
+
+---
+
+## 12. Siguiente paso sugerido
+
+Scaffolding inicial:
+
+```bash
+npm create tauri-app@latest inventario-llantera -- --template react-ts
+cd inventario-llantera
+npm install
+npm run tauri add sql
+npm run tauri add updater
+```
+
+Luego:
+
+1. Esquema SQLite (sección 7) como migración inicial, incluyendo `sesiones`, `eventos_sistema` y `respaldos`.
+2. Auth + guard de roles en Rust y en el router de React.
+3. Pantallas base: Login, Dashboard, Inventario, POS, Servicios, Reportes, **Status de uso**.
+4. Impresión ESC/POS y respaldo local antes del respaldo remoto.

@@ -1,0 +1,407 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-field: var(--field);
+  --color-hover: var(--hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-on-accent: var(--on-accent);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-fg: var(--ok-fg);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-fg: var(--warn-fg);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-fg: var(--danger-fg);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-border: var(--sidebar-border);
+}
+
+/* ---------- Base: tema claro ---------- */
+:root {
+  color-scheme: light;
+
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f2f3f6;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+
+  --fg: #08090a;
+  --fg-muted: #5b626d;
+  --fg-faint: #8b919c;
+
+  --field: #eceef1;
+  --hover: #eef0f3;
+  --sidebar-hover: #191b1f;
+  --menu: #1b1d21;
+  --menu-hover: #26282d;
+
+  --ok: #059669;
+  --warn: #d97706;
+  --danger: #dc2626;
+  --on-ok: #ffffff;
+  --on-danger: #ffffff;
+
+  --sidebar: #08090a;
+  --sidebar-fg: #eef2f8;
+  --sidebar-muted: #8b8f96;
+  --sidebar-border: #1a1b1f;
+}
+
+/* ---------- Base: tema oscuro ---------- */
+[data-mode="dark"] {
+  color-scheme: dark;
+
+  --bg: #08090a;
+  --surface: #111214;
+  --surface-2: #17181b;
+  --border: #232529;
+  --border-strong: #33363c;
+
+  --fg: #e9eaec;
+  --fg-muted: #9a9da4;
+  --fg-faint: #6d7079;
+
+  --field: #1d1f22;
+  --hover: #1c1e21;
+  --sidebar-hover: #17181b;
+  --menu: #1b1d21;
+  --menu-hover: #26282d;
+
+  --ok: #34d399;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --on-ok: #052e1f;
+  --on-danger: #450a0a;
+
+  --sidebar: #050506;
+  --sidebar-fg: #e9eaec;
+  --sidebar-muted: #85888f;
+  --sidebar-border: #1a1b1f;
+}
+
+/* ---------- Temas de color (acento) ---------- */
+:root,
+[data-accent="amber"] {
+  --accent: #f59e0b;
+  --accent-hover: #d97706;
+  --on-accent: #2a1c03;
+}
+[data-accent="azul"] {
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --on-accent: #ffffff;
+}
+[data-accent="esmeralda"] {
+  --accent: #059669;
+  --accent-hover: #047857;
+  --on-accent: #ffffff;
+}
+[data-accent="violeta"] {
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --on-accent: #ffffff;
+}
+[data-accent="rosa"] {
+  --accent: #e11d48;
+  --accent-hover: #be123c;
+  --on-accent: #ffffff;
+}
+[data-accent="neutro"] {
+  --accent: #08090a;
+  --accent-hover: #1f2126;
+  --on-accent: #ffffff;
+}
+
+[data-mode="dark"][data-accent="amber"] {
+  --accent: #fbbf24;
+  --accent-hover: #fcd34d;
+}
+[data-mode="dark"][data-accent="azul"] {
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+}
+[data-mode="dark"][data-accent="esmeralda"] {
+  --accent: #10b981;
+  --accent-hover: #34d399;
+  --on-accent: #052e1f;
+}
+[data-mode="dark"][data-accent="violeta"] {
+  --accent: #8b5cf6;
+  --accent-hover: #a78bfa;
+}
+[data-mode="dark"][data-accent="rosa"] {
+  --accent: #f43f5e;
+  --accent-hover: #fb7185;
+}
+[data-mode="dark"][data-accent="neutro"] {
+  --accent: #f3f4f6;
+  --accent-hover: #e5e7eb;
+  --on-accent: #0b1220;
+}
+
+/* Colores derivados: se recalculan solos al cambiar modo o acento */
+:root {
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  --accent-fg: color-mix(in srgb, var(--accent) 72%, var(--fg));
+  --ok-soft: color-mix(in srgb, var(--ok) 13%, var(--surface));
+  --ok-fg: color-mix(in srgb, var(--ok) 82%, var(--fg));
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, var(--surface));
+  --warn-fg: color-mix(in srgb, var(--warn) 82%, var(--fg));
+  --danger-soft: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  --danger-fg: color-mix(in srgb, var(--danger) 82%, var(--fg));
+  --ring: var(--accent);
+}
+
+/* ---------- Base documento ---------- */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+
+input[type="radio"] {
+  accent-color: var(--accent);
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Oculta el botón nativo de revelar contraseña (WebView2/Edge). */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
+/* Checkbox personalizado: cuadrado con check del color de acento */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin: 0;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+  border: 0;
+  border-radius: 0.4rem;
+  background: var(--field);
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+input[type="checkbox"]::before {
+  content: "";
+  width: 0.72rem;
+  height: 0.72rem;
+  background: var(--on-accent);
+  clip-path: polygon(14% 44%, 0 65%, 40% 100%, 100% 16%, 80% 0%, 38% 62%);
+  transform: scale(0);
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.3, 1.2);
+}
+input[type="checkbox"]:hover {
+  background: var(--hover);
+}
+input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+input[type="checkbox"]:checked {
+  background: var(--accent);
+}
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+input[type="checkbox"]:checked:hover {
+  background: var(--accent-hover);
+}
+input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) var(--surface-2);
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface-2);
+}
+
+/* ---------- Patrones compartidos ---------- */
+@layer components {
+  .page {
+    @apply mx-auto w-full max-w-[1500px] p-5 md:p-7;
+  }
+
+  .page-title {
+    @apply text-2xl font-bold tracking-tight text-fg;
+  }
+
+  .page-subtitle {
+    @apply mt-1 text-sm text-fg-muted;
+  }
+
+  .section-title {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-fg-muted;
+  }
+
+  .card-title {
+    @apply text-base font-semibold text-fg;
+  }
+
+  .empty-state {
+    @apply px-4 py-10 text-center text-sm text-fg-muted;
+  }
+
+  .alert {
+    @apply mb-4 flex items-start gap-2 rounded-xl px-4 py-3 text-sm font-medium;
+  }
+  .alert-danger {
+    @apply bg-danger-soft text-danger-fg;
+  }
+  .alert-ok {
+    @apply bg-ok-soft text-ok-fg;
+  }
+  .alert-warn {
+    @apply bg-warn-soft text-warn-fg;
+  }
+
+  .seg {
+    @apply inline-flex items-center gap-1 rounded-xl bg-surface-2 p-1;
+  }
+  .seg-item {
+    @apply inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium text-fg-muted transition-colors hover:text-fg;
+  }
+  .seg-item-active {
+    @apply bg-accent-soft text-accent-fg hover:text-accent-fg;
+  }
+
+  .icon-chip {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg;
+  }
+}
+
+/* Tablas de datos uniformes */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.table thead th {
+  background: var(--surface-2);
+  color: var(--fg-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.7rem 1rem;
+  white-space: nowrap;
+}
+.table tbody td {
+  padding: 0.65rem 1rem;
+  vertical-align: middle;
+}
+.table tbody tr {
+  background: var(--surface);
+  transition: background-color 0.12s ease;
+}
+.table tbody tr:nth-child(even) {
+  background: var(--surface-2);
+}
+.table tbody tr:hover {
+  background: var(--hover);
+}
+.table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Animaciones de diálogos */
+@keyframes sic-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes sic-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes sic-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.anim-fade {
+  animation: sic-fade-in 0.16s ease-out;
+}
+.anim-pop {
+  animation: sic-pop-in 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.anim-pulse {
+  animation: sic-pulse 1.6s ease-in-out infinite;
+}

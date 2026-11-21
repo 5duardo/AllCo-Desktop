@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es" data-mode="light" data-accent="amber">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/logo.png" />
+    <link rel="apple-touch-icon" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AllCo — Tu negocio, bajo control" />
+    <meta name="theme-color" content="#101826" />
+    <title>AllCo — Inventario y caja</title>
+    <script>
+      // Aplica el tema guardado antes del primer pintado para evitar parpadeos.
+      (function () {
+        try {
+          var mode = localStorage.getItem("sic-theme-mode") || "light";
+          var accent = localStorage.getItem("sic-theme-accent") || "amber";
+          var dark =
+            mode === "dark" ||
+            (mode === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.mode = dark ? "dark" : "light";
+          document.documentElement.dataset.accent = accent;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
