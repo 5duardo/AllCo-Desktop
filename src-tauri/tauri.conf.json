@@ -11,7 +11,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEwMzQ2NUQyMTA1NkVBQzEKUldUQjZsWVEwbVUwb08vby9MeTlUV0ozWUtoaFNvYUJYTzk3TjduV2JlWEk5djhZUWYxcCtxVnMK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVGODk0OTk1Rjg4NEQxMTUKUldRVjBZVDRsVW1KNzJZc25yR2pUazB1bGhOalVCbWNScUhiNnZpV2ZxdlhIR2dKbEF3Z01NcEIK",
       "endpoints": [
         "https://github.com/5duardo/AllCo-Desktop/releases/latest/download/latest.json"
       ]
