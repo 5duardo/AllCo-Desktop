@@ -42,10 +42,31 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
     let ts = db::now();
     let sucursal_id = data.sucursal_id.unwrap_or(1);
 
+    let cliente_nombre = if let Some(cliente_id) = data.cliente_id {
+        Some(
+            tx.query_row(
+                "SELECT nombre FROM clientes WHERE id = ?1 AND activo = 1",
+                params![cliente_id],
+                |r| r.get::<_, String>(0),
+            )
+            .map_err(|_| "Cliente no válido.".to_string())?,
+        )
+    } else {
+        None
+    };
+
     tx.execute(
-        "INSERT INTO ventas (fecha, usuario_id, sucursal_id, total, descuento, metodo_pago, estado)
-         VALUES (?1, ?2, ?3, 0, ?4, ?5, 'completada')",
-        params![ts, user.id, sucursal_id, data.descuento, data.metodo_pago],
+        "INSERT INTO ventas
+         (fecha, usuario_id, sucursal_id, cliente_id, total, descuento, metodo_pago, estado)
+         VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, 'completada')",
+        params![
+            ts,
+            user.id,
+            sucursal_id,
+            data.cliente_id,
+            data.descuento,
+            data.metodo_pago
+        ],
     )
     .map_err(|e| e.to_string())?;
     let venta_id = tx.last_insert_rowid();
@@ -150,6 +171,7 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
         venta_id,
         &ts,
         &user.nombre,
+        cliente_nombre.as_deref(),
         &lineas,
         data.descuento,
         total,
@@ -168,7 +190,7 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
                 &conn,
                 "print_ok",
                 Some(user.id),
-                &format!("Ticket #{venta_id} generado"),
+                &format!("Factura #{venta_id} generada"),
                 None,
             );
             (true, None)
@@ -178,7 +200,7 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
                 &conn,
                 "print_fail",
                 Some(user.id),
-                &format!("Ticket #{venta_id}: {e}"),
+                &format!("Factura #{venta_id}: {e}"),
                 None,
             );
             (false, Some(e.to_string()))
@@ -211,6 +233,7 @@ fn build_ticket(
     id: i64,
     fecha: &str,
     cajero: &str,
+    cliente: Option<&str>,
     lineas: &[String],
     descuento: f64,
     total: f64,
@@ -222,9 +245,12 @@ fn build_ticket(
     t.push_str(&format!("{negocio}\n"));
     t.push_str(&format!("{direccion}\n"));
     t.push_str("--------------------------------\n");
-    t.push_str(&format!("Ticket #{id}\n"));
+    t.push_str(&format!("Factura #{id}\n"));
     t.push_str(&format!("{fecha}\n"));
     t.push_str(&format!("Cajero: {cajero}\n"));
+    if let Some(c) = cliente {
+        t.push_str(&format!("Cliente: {}\n", truncate(c, 28)));
+    }
     t.push_str("--------------------------------\n");
     for l in lineas {
         t.push_str(l);
@@ -348,5 +374,5 @@ pub fn listar_ventas(
 pub fn obtener_ticket(state: State<AppState>, venta_id: i64) -> Result<String, String> {
     require_user(&state)?;
     let path = state.data_dir.join("tickets").join(format!("ticket-{venta_id}.txt"));
-    fs::read_to_string(&path).map_err(|_| "No hay copia del ticket.".to_string())
+    fs::read_to_string(&path).map_err(|_| "No hay copia de la factura.".to_string())
 }

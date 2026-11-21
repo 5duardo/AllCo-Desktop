@@ -1,6 +1,9 @@
 use crate::commands::auth::require_roles;
 use crate::db::{self, PRODUCTO_SELECT};
-use crate::models::{DashboardData, Producto, ReporteVentas, TotalesGrupo, VentaListado};
+use crate::models::{
+    DashboardData, DiaVenta, Producto, ReporteVentas, ResumenVentas, TotalesGrupo,
+    VentaListado,
+};
 use crate::AppState;
 use rusqlite::params;
 use tauri::State;
@@ -241,6 +244,76 @@ pub fn reporte_ventas(
         por_usuario,
         servicios_top,
         ventas,
+    })
+}
+
+#[tauri::command]
+pub fn resumen_ventas(
+    state: State<AppState>,
+    desde: String,
+    hasta: String,
+) -> Result<ResumenVentas, String> {
+    require_roles(&state, &["admin", "caja"])?;
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+
+    let (total, cantidad): (f64, i64) = conn
+        .query_row(
+            "SELECT COALESCE(SUM(total),0), COUNT(*) FROM ventas
+             WHERE estado = 'completada' AND date(fecha) >= date(?1) AND date(fecha) <= date(?2)",
+            params![desde, hasta],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|e| e.to_string())?;
+    let ticket_promedio = if cantidad > 0 {
+        db::round2(total / cantidad as f64)
+    } else {
+        0.0
+    };
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT metodo_pago, SUM(total), COUNT(*) FROM ventas
+             WHERE estado = 'completada' AND date(fecha) >= date(?1) AND date(fecha) <= date(?2)
+             GROUP BY metodo_pago ORDER BY SUM(total) DESC",
+        )
+        .map_err(|e| e.to_string())?;
+    let por_metodo = stmt
+        .query_map(params![desde, hasta], |r| {
+            Ok(TotalesGrupo {
+                nombre: r.get(0)?,
+                total: r.get(1)?,
+                cantidad: r.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT substr(fecha, 1, 10) AS dia, SUM(total), COUNT(*) FROM ventas
+             WHERE estado = 'completada' AND date(fecha) >= date(?1) AND date(fecha) <= date(?2)
+             GROUP BY dia ORDER BY dia ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let serie = stmt
+        .query_map(params![desde, hasta], |r| {
+            Ok(DiaVenta {
+                fecha: r.get(0)?,
+                total: r.get(1)?,
+                cantidad: r.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(ResumenVentas {
+        total,
+        cantidad,
+        ticket_promedio,
+        por_metodo,
+        serie,
     })
 }
 

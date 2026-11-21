@@ -7,6 +7,7 @@ pub struct UsuarioPublico {
     pub usuario: String,
     pub rol: String,
     pub activo: bool,
+    pub dev: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,10 +88,35 @@ pub struct VentaItemIn {
 #[derive(Debug, Deserialize)]
 pub struct VentaIn {
     pub sucursal_id: Option<i64>,
+    #[serde(default)]
+    pub cliente_id: Option<i64>,
     pub items: Vec<VentaItemIn>,
     pub descuento: f64,
     pub metodo_pago: String,
     pub recibido: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Cliente {
+    pub id: i64,
+    pub nombre: String,
+    pub telefono: String,
+    pub correo: String,
+    pub direccion: String,
+    pub activo: bool,
+    pub created_at: String,
+    pub facturas: i64,
+    pub total_comprado: f64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ClienteIn {
+    pub id: Option<i64>,
+    pub nombre: String,
+    pub telefono: String,
+    pub correo: String,
+    pub direccion: String,
+    pub activo: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -157,6 +183,30 @@ pub struct ReporteVentas {
 }
 
 #[derive(Debug, Serialize)]
+pub struct EstadoPruebas {
+    pub productos: i64,
+    pub servicios: i64,
+    pub clientes: i64,
+    pub ventas: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DiaVenta {
+    pub fecha: String,
+    pub total: f64,
+    pub cantidad: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ResumenVentas {
+    pub total: f64,
+    pub cantidad: i64,
+    pub ticket_promedio: f64,
+    pub por_metodo: Vec<TotalesGrupo>,
+    pub serie: Vec<DiaVenta>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct LoginHoy {
     pub nombre: String,
     pub usuario: String,
@@ -218,6 +268,14 @@ pub struct ConfigApp {
     pub umbral_db_mb: String,
     pub umbral_respaldo_dias: String,
     pub caja_puede_descuento: String,
+    #[serde(default)]
+    pub negocio_logo: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MarcaNegocio {
+    pub nombre: String,
+    pub logo: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

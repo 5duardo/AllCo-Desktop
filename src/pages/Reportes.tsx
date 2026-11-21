@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { BarChart3, PackageSearch, Receipt, RefreshCw, Ticket } from "lucide-react";
+import { BarChart3, PackageSearch, Receipt, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { fechaHora, lempiras, pagoLabel } from "@/lib/format";
 import type { Producto, ReporteVentas } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Stat } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -46,7 +46,14 @@ export function ReportesPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Reportes" subtitle="Ventas, kardex y existencias bajo mínimo">
+      <PageHero
+        title="Reportes"
+        subtitle="Ventas, kardex y existencias bajo mínimo"
+        description="Consulta ventas por periodo, métodos de pago, servicios más vendidos y productos por debajo del stock mínimo."
+        icon={BarChart3}
+        badge="Ventas y stock"
+      />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="seg" role="group" aria-label="Tipo de reporte">
           <button
             type="button"
@@ -67,7 +74,7 @@ export function ReportesPage() {
             Stock mínimo
           </button>
         </div>
-      </PageHeader>
+      </div>
       {error ? <Alert>{error}</Alert> : null}
 
       {tab === "ventas" ? (
@@ -104,8 +111,8 @@ export function ReportesPage() {
             <>
               <div className="grid gap-4 sm:grid-cols-3">
                 <Stat label="Total vendido" value={lempiras(rep.total)} icon={<Receipt className="h-5 w-5" />} />
-                <Stat label="Tickets" value={rep.cantidad} icon={<Ticket className="h-5 w-5" />} />
-                <Stat label="Ticket promedio" value={lempiras(rep.ticket_promedio)} icon={<BarChart3 className="h-5 w-5" />} />
+                <Stat label="Facturas" value={rep.cantidad} icon={<Receipt className="h-5 w-5" />} />
+                <Stat label="Promedio por factura" value={lempiras(rep.ticket_promedio)} icon={<BarChart3 className="h-5 w-5" />} />
               </div>
 
               <div className="grid items-start gap-4 lg:grid-cols-3">
@@ -166,7 +173,7 @@ export function ReportesPage() {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Ticket</th>
+                      <th>Factura</th>
                       <th>Fecha</th>
                       <th>Cajero</th>
                       <th>Pago</th>

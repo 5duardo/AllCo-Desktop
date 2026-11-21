@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Clock, Pencil, Plus, SprayCan } from "lucide-react";
+import { Clock, Pencil, Plus, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
 import { lempiras } from "@/lib/format";
 import type { Servicio } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
@@ -46,7 +46,14 @@ export function ServiciosPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Servicios" subtitle="Catálogo de servicios: precios y tiempos estimados">
+      <PageHero
+        title="Servicios"
+        subtitle="Catálogo de servicios: precios y tiempos estimados"
+        description="Administra los servicios que se venden en Caja, con su precio y duración estimada."
+        icon={Wrench}
+        badge={`${rows.length} servicios`}
+      />
+      <div className="mb-4 flex flex-wrap justify-end gap-2">
         <Button
           onClick={() => {
             setForm(empty);
@@ -56,7 +63,7 @@ export function ServiciosPage() {
           <Plus className="h-4 w-4" />
           Nuevo servicio
         </Button>
-      </PageHeader>
+      </div>
       {error ? <Alert>{error}</Alert> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -64,7 +71,7 @@ export function ServiciosPage() {
           <Card key={s.id} className={`p-5 ${!s.activo ? "opacity-60" : ""}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="icon-chip">
-                <SprayCan className="h-5 w-5" />
+                <Wrench className="h-5 w-5" />
               </div>
               {s.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Inactivo</Badge>}
             </div>

@@ -1,8 +1,8 @@
-use crate::commands::auth::require_roles;
+use crate::commands::auth::{require_roles, require_user};
 use crate::db;
 use crate::models::{
-    AlertaSistema, ConfigApp, EventoSistema, LoginHoy, StatusSistema, UsuarioIn,
-    UsuarioPublico,
+    AlertaSistema, ConfigApp, EventoSistema, LoginHoy, MarcaNegocio, StatusSistema,
+    UsuarioIn, UsuarioPublico,
 };
 use crate::AppState;
 use rusqlite::params;
@@ -19,7 +19,7 @@ pub fn listar_usuarios(state: State<AppState>) -> Result<Vec<UsuarioPublico>, St
     require_roles(&state, &["admin"])?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, nombre, usuario, rol, activo FROM usuarios ORDER BY nombre")
+        .prepare("SELECT id, nombre, usuario, rol, activo, es_dev FROM usuarios ORDER BY nombre")
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], db::usuario_from_row)
@@ -41,6 +41,16 @@ pub fn guardar_usuario(state: State<AppState>, data: UsuarioIn) -> Result<i64, S
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
 
     if let Some(id) = data.id {
+        let target_dev: i64 = conn
+            .query_row(
+                "SELECT es_dev FROM usuarios WHERE id = ?1",
+                params![id],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        if target_dev != 0 && !admin.dev {
+            return Err("No puede modificar al usuario de desarrollo.".into());
+        }
         if id == admin.id && !data.activo {
             return Err("No puede desactivarse a sí mismo.".into());
         }
@@ -133,6 +143,14 @@ pub fn guardar_config(state: State<AppState>, data: ConfigApp) -> Result<(), Str
     require_roles(&state, &["admin"])?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     db::save_config(&conn, &data)
+}
+
+/// Marca visible para todos los roles: nombre y logo del negocio.
+#[tauri::command]
+pub fn marca_negocio(state: State<AppState>) -> Result<MarcaNegocio, String> {
+    require_user(&state)?;
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    db::marca_negocio(&conn)
 }
 
 #[tauri::command]
@@ -396,6 +414,21 @@ impl<T> OptionalOk<T> for Result<T, rusqlite::Error> {
     }
 }
 
+fn copia_seguridad(
+    conn: &rusqlite::Connection,
+    dest: &std::path::Path,
+) -> Result<(), String> {
+    if dest.exists() {
+        return Err("Ya existe un archivo con ese nombre.".into());
+    }
+    conn.execute(
+        "VACUUM INTO ?1",
+        params![dest.to_string_lossy().to_string()],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn backup_stale(fecha: &str, dias: i64) -> bool {
     let parsed = chrono::NaiveDateTime::parse_from_str(fecha, "%Y-%m-%d %H:%M:%S");
     let Ok(dt) = parsed else {
@@ -425,11 +458,14 @@ pub fn respaldo_local(app: AppHandle, state: State<AppState>) -> Result<String, 
         .blocking_pick_folder();
 
     let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let filename = format!("sic-{stamp}.db");
+    let filename = format!("allco-{stamp}.db");
     let default_dir = state.data_dir.join("respaldos");
     fs::create_dir_all(&default_dir).map_err(|e| e.to_string())?;
     let default_path = default_dir.join(&filename);
-    fs::copy(&state.db_path, &default_path).map_err(|e| e.to_string())?;
+    {
+        let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+        copia_seguridad(&conn, &default_path)?;
+    }
     let size = fs::metadata(&default_path).map(|m| m.len()).unwrap_or(0);
 
     let mut final_path = default_path.clone();
@@ -471,6 +507,59 @@ pub fn respaldo_local(app: AppHandle, state: State<AppState>) -> Result<String, 
         None,
     )?;
     Ok(final_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn eliminar_datos(state: State<AppState>) -> Result<String, String> {
+    let user = require_roles(&state, &["admin"])?;
+    let mut conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+
+    let dir = state.data_dir.join("respaldos");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    let backup = dir.join(format!("auto-{stamp}.db"));
+    copia_seguridad(&conn, &backup)?;
+    let size = fs::metadata(&backup).map(|m| m.len()).unwrap_or(0);
+    conn.execute(
+        "INSERT INTO respaldos (tipo, ruta_o_key, tamano_bytes, exito, mensaje_error, fecha)
+         VALUES ('local', ?1, ?2, 1, NULL, ?3)",
+        params![backup.to_string_lossy(), size as i64, db::now()],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM venta_items", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM movimientos_inv", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM ventas", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM productos", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM servicios", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM clientes", [])
+        .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+
+    if let Ok(entries) = fs::read_dir(state.data_dir.join("tickets")) {
+        for entry in entries.flatten() {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+
+    db::log_event(
+        &conn,
+        "datos_eliminados",
+        Some(user.id),
+        &format!(
+            "Datos operativos eliminados. Respaldo: {}",
+            backup.display()
+        ),
+        None,
+    )?;
+
+    Ok(backup.to_string_lossy().to_string())
 }
 
 #[tauri::command]

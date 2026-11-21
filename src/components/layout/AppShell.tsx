@@ -1,29 +1,43 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { check } from "@tauri-apps/plugin-updater";
 import {
   ArrowLeftRight,
+  ArrowUpRight,
   ChevronsUpDown,
+  LifeBuoy,
   LogOut,
+  Mail,
+  MessageCircle,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Sun,
 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import {
+  BeakerIcon,
   ChartBarIcon,
+  CircleStackIcon,
   Cog6ToothIcon,
   CubeIcon,
   HomeIcon,
+  IdentificationIcon,
   ShoppingCartIcon,
   SignalIcon,
   UsersIcon,
   WrenchIcon,
 } from "@heroicons/react/24/outline";
 import {
+  BeakerIcon as BeakerSolidIcon,
   ChartBarIcon as ChartBarSolidIcon,
+  CircleStackIcon as CircleStackSolidIcon,
   Cog6ToothIcon as Cog6ToothSolidIcon,
   CubeIcon as CubeSolidIcon,
   HomeIcon as HomeSolidIcon,
+  IdentificationIcon as IdentificationSolidIcon,
   ShoppingCartIcon as ShoppingCartSolidIcon,
   SignalIcon as SignalSolidIcon,
   UsersIcon as UsersSolidIcon,
@@ -31,31 +45,44 @@ import {
 } from "@heroicons/react/24/solid";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { Logo } from "@/components/Logo";
+import { BrandLogo } from "@/components/BrandLogo";
+import { api } from "@/lib/api";
 import { rolLabel } from "@/lib/format";
-import type { Rol } from "@/lib/types";
+import type { MarcaNegocio, Rol } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type NavIcon = ComponentType<{ className?: string }>;
+type NavGroup = "operacion" | "administracion" | "desarrollo";
+
+const GRUPOS: { id: NavGroup; label: string }[] = [
+  { id: "operacion", label: "Operación" },
+  { id: "administracion", label: "Administración" },
+  { id: "desarrollo", label: "Desarrollo" },
+];
 
 const NAV: {
   to: string;
   label: string;
   icon: NavIcon;
   iconSolid: NavIcon;
+  group: NavGroup;
   roles: Rol[];
+  devOnly?: boolean;
 }[] = [
-  { to: "/", label: "Inicio", icon: HomeIcon, iconSolid: HomeSolidIcon, roles: ["admin", "caja", "bodega"] },
-  { to: "/pos", label: "Caja", icon: ShoppingCartIcon, iconSolid: ShoppingCartSolidIcon, roles: ["admin", "caja"] },
-  { to: "/inventario", label: "Inventario", icon: CubeIcon, iconSolid: CubeSolidIcon, roles: ["admin", "bodega"] },
-  { to: "/servicios", label: "Servicios", icon: WrenchIcon, iconSolid: WrenchSolidIcon, roles: ["admin"] },
-  { to: "/reportes", label: "Reportes", icon: ChartBarIcon, iconSolid: ChartBarSolidIcon, roles: ["admin"] },
-  { to: "/usuarios", label: "Usuarios", icon: UsersIcon, iconSolid: UsersSolidIcon, roles: ["admin"] },
-  { to: "/status", label: "Status de uso", icon: SignalIcon, iconSolid: SignalSolidIcon, roles: ["admin"] },
-  { to: "/config", label: "Configuración", icon: Cog6ToothIcon, iconSolid: Cog6ToothSolidIcon, roles: ["admin"] },
+  { to: "/", label: "Inicio", icon: HomeIcon, iconSolid: HomeSolidIcon, group: "operacion", roles: ["admin", "caja", "bodega"] },
+  { to: "/pos", label: "Caja", icon: ShoppingCartIcon, iconSolid: ShoppingCartSolidIcon, group: "operacion", roles: ["admin", "caja"] },
+  { to: "/clientes", label: "Clientes", icon: IdentificationIcon, iconSolid: IdentificationSolidIcon, group: "operacion", roles: ["admin", "caja"] },
+  { to: "/inventario", label: "Inventario", icon: CubeIcon, iconSolid: CubeSolidIcon, group: "operacion", roles: ["admin", "bodega"] },
+  { to: "/servicios", label: "Servicios", icon: WrenchIcon, iconSolid: WrenchSolidIcon, group: "operacion", roles: ["admin"] },
+  { to: "/reportes", label: "Reportes", icon: ChartBarIcon, iconSolid: ChartBarSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/usuarios", label: "Usuarios", icon: UsersIcon, iconSolid: UsersSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/status", label: "Status de uso", icon: SignalIcon, iconSolid: SignalSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/base-datos", label: "Base de datos", icon: CircleStackIcon, iconSolid: CircleStackSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/config", label: "Configuración", icon: Cog6ToothIcon, iconSolid: Cog6ToothSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/pruebas", label: "Pruebas", icon: BeakerIcon, iconSolid: BeakerSolidIcon, group: "desarrollo", roles: ["admin"], devOnly: true },
 ];
 
-const COLLAPSE_KEY = "sic-sidebar-collapsed";
+const COLLAPSE_KEY = "allco-sidebar-collapsed";
 
 function ProfileMenuItem({
   icon: Icon,
@@ -91,11 +118,41 @@ export function AppShell() {
     () => localStorage.getItem(COLLAPSE_KEY) === "1",
   );
   const [menuOpen, setMenuOpen] = useState(false);
+  const [soporteOpen, setSoporteOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [nuevaVersion, setNuevaVersion] = useState<string | null>(null);
+  const [marca, setMarca] = useState<MarcaNegocio | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0");
   }, [collapsed]);
+
+  // Búsqueda automática de actualizaciones al abrir la app.
+  useEffect(() => {
+    let vigente = true;
+    check()
+      .then((u) => {
+        if (vigente && u) setNuevaVersion(u.version);
+      })
+      .catch(() => {});
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  // Nombre y logo del negocio para la marca del sidebar.
+  useEffect(() => {
+    const cargarMarca = () => {
+      api
+        .marcaNegocio()
+        .then(setMarca)
+        .catch(() => {});
+    };
+    cargarMarca();
+    window.addEventListener("allco-brand", cargarMarca);
+    return () => window.removeEventListener("allco-brand", cargarMarca);
+  }, []);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -126,7 +183,10 @@ export function AppShell() {
     navigate("/login");
   }
 
-  const items = NAV.filter((n) => n.roles.includes(user.rol));
+  const items = NAV.filter(
+    (n) => n.roles.includes(user.rol) && (!n.devOnly || user.dev),
+  );
+  const nombreNegocio = marca?.nombre?.trim() || "AllCo";
   // El acento neutro es negro en tema claro: sobre el sidebar oscuro
   // necesita un fondo translúcido para que el ítem activo se distinga.
   const neutralOnDarkSidebar = accent === "neutro" && resolvedMode === "light";
@@ -152,7 +212,7 @@ export function AppShell() {
           title={collapsed ? "Expandir menú" : "Contraer menú"}
           aria-label={collapsed ? "Expandir menú" : "Contraer menú"}
           aria-expanded={!collapsed}
-          className="absolute -right-3.5 top-7 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-surface text-fg-muted outline-none transition-all hover:scale-110 hover:text-accent-fg focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+          className="absolute -right-3.5 top-7 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-border-strong bg-surface text-fg-muted outline-none transition-all hover:scale-110 hover:text-accent-fg focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
         >
           {collapsed ? (
             <PanelLeftOpen className="h-3.5 w-3.5" />
@@ -166,67 +226,118 @@ export function AppShell() {
             "flex items-center gap-3 px-5 py-5",
             collapsed && "justify-center px-2",
           )}
+          title={collapsed ? nombreNegocio : undefined}
         >
-          <Logo className="h-11 w-11" />
+          <BrandLogo
+            logo={marca?.logo}
+            name={nombreNegocio}
+            className="h-11 w-11"
+          />
           <div
             className={cn(
               "min-w-0 flex-1 overflow-hidden whitespace-nowrap transition-all duration-200",
               collapsed && "pointer-events-none w-0 flex-none opacity-0",
             )}
           >
-            <p className="truncate text-base font-bold leading-tight">AllCo</p>
-            <p className="truncate text-xs text-sidebar-muted">Inventario y caja</p>
+            <p className="truncate text-base font-bold leading-tight">{nombreNegocio}</p>
+            <p className="truncate text-[11px] text-sidebar-muted">
+              Impulsado por <span className="font-medium text-sidebar-fg">AllCo</span>
+            </p>
           </div>
         </div>
 
         <nav
-          className={cn("flex-1 space-y-1 overflow-y-auto p-3", collapsed && "px-2.5")}
+          className={cn("flex-1 overflow-y-auto p-3", collapsed && "px-2.5")}
           aria-label="Menú principal"
         >
-          {!collapsed ? (
-            <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-muted">
-              Menú
-            </p>
-          ) : (
-            <div className="mx-auto mb-3 h-1 w-8 rounded-full bg-sidebar-border" />
-          )}
-          {items.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              title={item.label}
-              aria-label={item.label}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
-                  collapsed && "justify-center gap-0 px-2 py-3",
-                  isActive
-                    ? neutralOnDarkSidebar
-                      ? "bg-[#1d1f23] text-white"
-                      : "bg-accent text-on-accent"
-                    : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-fg",
-                )
-              }
-            >
-              {({ isActive }) => {
-                const Icon = isActive ? item.iconSolid : item.icon;
-                return (
-                  <>
-                    <Icon className="h-[18px] w-[18px] shrink-0" />
-                    <span
-                      className={cn(
-                        "truncate whitespace-nowrap transition-all duration-200",
-                        collapsed && "w-0 -translate-x-1 opacity-0",
-                      )}
+          {GRUPOS.map((grupo, indice) => {
+            const visibles = items.filter((item) => item.group === grupo.id);
+            if (visibles.length === 0) return null;
+            return (
+              <div key={grupo.id} className={cn(indice > 0 && "mt-4")}>
+                {!collapsed ? (
+                  <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-muted">
+                    {grupo.label}
+                  </p>
+                ) : indice > 0 ? (
+                  <div className="mx-auto mb-3 h-1 w-8 rounded-full bg-sidebar-border" />
+                ) : null}
+                <div className="space-y-1">
+                  {visibles.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === "/"}
+                      title={item.label}
+                      aria-label={item.label}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+                          collapsed && "justify-center gap-0 px-2 py-3",
+                          isActive
+                            ? neutralOnDarkSidebar
+                              ? "bg-[#1d1f23] text-white"
+                              : "bg-accent text-on-accent"
+                            : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-fg",
+                        )
+                      }
                     >
-                      {item.label}
-                    </span>
-                  </>
-                );
-              }}
-            </NavLink>
-          ))}
+                      {({ isActive }) => {
+                        const Icon = isActive ? item.iconSolid : item.icon;
+                        return (
+                          <>
+                            <Icon className="h-[18px] w-[18px] shrink-0" />
+                            <span
+                              className={cn(
+                                "truncate whitespace-nowrap transition-all duration-200",
+                                collapsed && "w-0 -translate-x-1 opacity-0",
+                              )}
+                            >
+                              {item.label}
+                            </span>
+                          </>
+                        );
+                      }}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          <div className="mt-4">
+            {!collapsed ? (
+              <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-muted">
+                Ayuda
+              </p>
+            ) : (
+              <div className="mx-auto mb-3 h-1 w-8 rounded-full bg-sidebar-border" />
+            )}
+            <button
+              type="button"
+              onClick={() => setSoporteOpen(true)}
+              title="Soporte"
+              aria-label="Soporte"
+              aria-haspopup="dialog"
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+                collapsed && "justify-center gap-0 px-2 py-3",
+                soporteOpen
+                  ? "bg-sidebar-hover text-sidebar-fg"
+                  : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-fg",
+              )}
+            >
+              <LifeBuoy className="h-[18px] w-[18px] shrink-0" />
+              <span
+                className={cn(
+                  "truncate whitespace-nowrap transition-all duration-200",
+                  collapsed && "w-0 -translate-x-1 opacity-0",
+                )}
+              >
+                Soporte
+              </span>
+            </button>
+          </div>
         </nav>
 
         {/* Mini perfil con menú */}
@@ -267,7 +378,7 @@ export function AppShell() {
                 danger
                 onClick={() => {
                   setMenuOpen(false);
-                  onLogout();
+                  setConfirmLogout(true);
                 }}
               />
             </div>
@@ -278,7 +389,11 @@ export function AppShell() {
             onClick={() => setMenuOpen((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            title={collapsed ? `${user.nombre} · ${rolLabel(user.rol)}` : undefined}
+            title={
+              collapsed
+                ? `${user.nombre} · ${user.dev ? "Desarrollador" : rolLabel(user.rol)}`
+                : undefined
+            }
             className={cn(
               "flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left outline-none transition-colors hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
               collapsed && "justify-center px-0",
@@ -301,7 +416,7 @@ export function AppShell() {
                     {user.nombre}
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-sidebar-muted">
-                    {rolLabel(user.rol)}
+                    {user.dev ? "Desarrollador" : rolLabel(user.rol)}
                   </span>
                 </span>
                 <ChevronsUpDown className="h-4 w-4 shrink-0 text-sidebar-muted" />
@@ -312,8 +427,99 @@ export function AppShell() {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto">
+        {nuevaVersion && user.rol === "admin" ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-accent-soft px-5 py-2.5">
+            <p className="text-sm font-medium text-accent-fg">
+              Nueva versión v{nuevaVersion} disponible.
+            </p>
+            <Link
+              to="/config"
+              className="text-sm font-semibold text-accent-fg underline underline-offset-2 hover:opacity-80"
+            >
+              Ir a actualizaciones
+            </Link>
+          </div>
+        ) : null}
         <Outlet />
       </main>
+
+      <Modal
+        open={soporteOpen}
+        title="Soporte"
+        subtitle="Estamos para ayudarte"
+        onClose={() => setSoporteOpen(false)}
+      >
+        <p className="text-sm text-fg-muted">
+          Contacta al equipo de AllCo por cualquiera de estos medios.
+        </p>
+
+        <div className="mt-4 space-y-2">
+          <button
+            type="button"
+            onClick={() =>
+              openUrl("https://wa.me/50492561515").catch(() =>
+                window.open("https://wa.me/50492561515", "_blank", "noopener"),
+              )
+            }
+            className="flex w-full items-center gap-3 rounded-xl border border-border bg-surface-2 p-3 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+          >
+            <span className="icon-chip">
+              <MessageCircle className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-fg">WhatsApp</span>
+              <span className="block text-sm text-fg-muted">+504 9256 1515</span>
+            </span>
+            <ArrowUpRight className="h-4 w-4 shrink-0 text-fg-faint" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              openUrl("mailto:info@byhyped.com").catch(() =>
+                window.open("mailto:info@byhyped.com"),
+              )
+            }
+            className="flex w-full items-center gap-3 rounded-xl border border-border bg-surface-2 p-3 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+          >
+            <span className="icon-chip">
+              <Mail className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-fg">Correo</span>
+              <span className="block text-sm text-fg-muted">info@byhyped.com</span>
+            </span>
+            <ArrowUpRight className="h-4 w-4 shrink-0 text-fg-faint" />
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={confirmLogout}
+        title="Cerrar sesión"
+        subtitle="Confirma para salir de la app"
+        onClose={() => setConfirmLogout(false)}
+      >
+        <p className="text-sm text-fg-muted">
+          Se cerrará la sesión de <b className="text-fg">{user.nombre}</b>. ¿Deseas
+          continuar?
+        </p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" onClick={() => setConfirmLogout(false)}>
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setConfirmLogout(false);
+              void onLogout();
+            }}
+          >
+            <LogOut className="h-4 w-4" />
+            Cerrar sesión
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

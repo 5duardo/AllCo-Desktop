@@ -8,8 +8,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-accent text-on-accent hover:bg-accent-hover",
-        secondary: "bg-surface-2 text-fg hover:bg-hover",
-        outline: "bg-surface text-fg hover:bg-hover",
+        secondary: "border border-border bg-surface-2 text-fg hover:bg-hover",
+        outline: "border border-border-strong bg-surface text-fg hover:bg-hover",
         ghost: "text-fg-muted hover:bg-hover hover:text-fg",
         danger: "bg-danger text-[var(--on-danger)] hover:bg-danger-soft hover:text-danger-fg",
         dangerSoft: "bg-danger-soft text-danger-fg hover:bg-hover",

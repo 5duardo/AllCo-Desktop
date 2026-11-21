@@ -25,12 +25,43 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
             fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
             fs::create_dir_all(data_dir.join("respaldos")).map_err(|e| e.to_string())?;
             fs::create_dir_all(data_dir.join("tickets")).map_err(|e| e.to_string())?;
-            let db_path = data_dir.join("sic.db");
+            let db_path = data_dir.join("allco.db");
+
+            // Migra la base de datos de versiones anteriores, incluidos sus WAL/SHM.
+            if !db_path.exists() {
+                if let Ok(entries) = fs::read_dir(&data_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().and_then(|e| e.to_str()) == Some("db") {
+                            let stem = path
+                                .file_stem()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("db")
+                                .to_string();
+                            if fs::rename(&path, &db_path).is_ok() {
+                                for suffix in ["-wal", "-shm", "-journal"] {
+                                    let old_side = data_dir.join(format!("{stem}.db{suffix}"));
+                                    if old_side.exists() {
+                                        let _ = fs::rename(
+                                            old_side,
+                                            data_dir.join(format!("allco.db{suffix}")),
+                                        );
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
             let conn = db::open(&db_path)?;
             db::migrate_and_seed(&conn)?;
             db::log_event(&conn, "app_start", None, "Aplicación iniciada", None)?;
@@ -61,25 +92,33 @@ pub fn run() {
             kardex,
             listar_servicios,
             guardar_servicio,
+            listar_clientes,
+            guardar_cliente,
+            facturas_cliente,
+            estado_pruebas,
+            agregar_datos_ejemplo,
             crear_venta,
             anular_venta,
             listar_ventas,
             obtener_ticket,
             dashboard,
             reporte_ventas,
+            resumen_ventas,
             productos_stock_minimo,
             listar_usuarios,
             guardar_usuario,
             obtener_config,
             guardar_config,
+            marca_negocio,
             bitacora,
             status_sistema,
             respaldo_local,
+            eliminar_datos,
             abrir_carpeta_datos,
             abrir_carpeta_respaldos,
         ])
         .build(tauri::generate_context!())
-        .expect("error al iniciar SIC")
+        .expect("error al iniciar AllCo")
         .run(|app, event| {
             if let RunEvent::Exit = event {
                 if let Some(state) = app.try_state::<AppState>() {

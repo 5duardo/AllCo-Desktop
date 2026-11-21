@@ -18,8 +18,8 @@ export const ACCENTS = [
 export type AccentId = (typeof ACCENTS)[number]["id"];
 export type ThemeMode = "light" | "dark" | "system";
 
-const MODE_KEY = "sic-theme-mode";
-const ACCENT_KEY = "sic-theme-accent";
+const MODE_KEY = "allco-theme-mode";
+const ACCENT_KEY = "allco-theme-accent";
 
 type ThemeCtx = {
   mode: ThemeMode;
@@ -38,8 +38,16 @@ function readMode(): ThemeMode {
 }
 
 function readAccent(): AccentId {
+  // Migración única: el acento por defecto ahora es Neutro.
+  if (!localStorage.getItem("allco-default-neutral")) {
+    localStorage.setItem("allco-default-neutral", "1");
+    const actual = localStorage.getItem(ACCENT_KEY);
+    if (!actual || actual === "amber") {
+      localStorage.setItem(ACCENT_KEY, "neutro");
+    }
+  }
   const v = localStorage.getItem(ACCENT_KEY);
-  return ACCENTS.some((a) => a.id === v) ? (v as AccentId) : "amber";
+  return ACCENTS.some((a) => a.id === v) ? (v as AccentId) : "neutro";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

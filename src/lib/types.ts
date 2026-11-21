@@ -6,6 +6,14 @@ export type Usuario = {
   usuario: string;
   rol: Rol;
   activo: boolean;
+  dev: boolean;
+};
+
+export type EstadoPruebas = {
+  productos: number;
+  servicios: number;
+  clientes: number;
+  ventas: number;
 };
 
 export type Producto = {
@@ -34,6 +42,27 @@ export type Servicio = {
   descripcion: string;
   precio: number;
   duracion_min: number;
+  activo: boolean;
+};
+
+export type Cliente = {
+  id: number;
+  nombre: string;
+  telefono: string;
+  correo: string;
+  direccion: string;
+  activo: boolean;
+  created_at: string;
+  facturas: number;
+  total_comprado: number;
+};
+
+export type ClienteIn = {
+  id?: number;
+  nombre: string;
+  telefono: string;
+  correo: string;
+  direccion: string;
   activo: boolean;
 };
 
@@ -100,6 +129,16 @@ export type ReporteVentas = {
   ventas: VentaListado[];
 };
 
+export type DiaVenta = { fecha: string; total: number; cantidad: number };
+
+export type ResumenVentas = {
+  total: number;
+  cantidad: number;
+  ticket_promedio: number;
+  por_metodo: TotalesGrupo[];
+  serie: DiaVenta[];
+};
+
 export type EventoSistema = {
   id: number;
   tipo: string;
@@ -145,6 +184,12 @@ export type ConfigApp = {
   umbral_db_mb: string;
   umbral_respaldo_dias: string;
   caja_puede_descuento: string;
+  negocio_logo: string | null;
+};
+
+export type MarcaNegocio = {
+  nombre: string;
+  logo: string | null;
 };
 
 export type CartLine = VentaItemIn & {

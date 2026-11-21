@@ -74,6 +74,10 @@
 [data-mode="dark"] {
   color-scheme: dark;
 
+  --accent: #f3f4f6;
+  --accent-hover: #e5e7eb;
+  --on-accent: #0b1220;
+
   --bg: #08090a;
   --surface: #111214;
   --surface-2: #17181b;
@@ -104,6 +108,11 @@
 
 /* ---------- Temas de color (acento) ---------- */
 :root,
+[data-accent="neutro"] {
+  --accent: #08090a;
+  --accent-hover: #1f2126;
+  --on-accent: #ffffff;
+}
 [data-accent="amber"] {
   --accent: #f59e0b;
   --accent-hover: #d97706;
@@ -127,11 +136,6 @@
 [data-accent="rosa"] {
   --accent: #e11d48;
   --accent-hover: #be123c;
-  --on-accent: #ffffff;
-}
-[data-accent="neutro"] {
-  --accent: #08090a;
-  --accent-hover: #1f2126;
   --on-accent: #ffffff;
 }
 
@@ -318,7 +322,7 @@ input[type="checkbox"]:disabled {
   }
 
   .seg {
-    @apply inline-flex items-center gap-1 rounded-xl bg-surface-2 p-1;
+    @apply inline-flex items-center gap-1 rounded-xl border border-border bg-surface-2 p-1;
   }
   .seg-item {
     @apply inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium text-fg-muted transition-colors hover:text-fg;
@@ -369,7 +373,7 @@ input[type="checkbox"]:disabled {
 }
 
 /* Animaciones de diálogos */
-@keyframes sic-fade-in {
+@keyframes allco-fade-in {
   from {
     opacity: 0;
   }
@@ -377,7 +381,7 @@ input[type="checkbox"]:disabled {
     opacity: 1;
   }
 }
-@keyframes sic-pop-in {
+@keyframes allco-pop-in {
   from {
     opacity: 0;
     transform: translateY(10px) scale(0.98);
@@ -387,7 +391,7 @@ input[type="checkbox"]:disabled {
     transform: translateY(0) scale(1);
   }
 }
-@keyframes sic-pulse {
+@keyframes allco-pulse {
   0%,
   100% {
     opacity: 1;
@@ -397,11 +401,11 @@ input[type="checkbox"]:disabled {
   }
 }
 .anim-fade {
-  animation: sic-fade-in 0.16s ease-out;
+  animation: allco-fade-in 0.16s ease-out;
 }
 .anim-pop {
-  animation: sic-pop-in 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+  animation: allco-pop-in 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 .anim-pulse {
-  animation: sic-pulse 1.6s ease-in-out infinite;
+  animation: allco-pulse 1.6s ease-in-out infinite;
 }

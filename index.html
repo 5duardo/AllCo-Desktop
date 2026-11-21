@@ -7,13 +7,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="AllCo — Tu negocio, bajo control" />
     <meta name="theme-color" content="#101826" />
-    <title>AllCo — Inventario y caja</title>
+    <title>AllCo</title>
     <script>
       // Aplica el tema guardado antes del primer pintado para evitar parpadeos.
       (function () {
         try {
-          var mode = localStorage.getItem("sic-theme-mode") || "light";
-          var accent = localStorage.getItem("sic-theme-accent") || "amber";
+          var mode = localStorage.getItem("allco-theme-mode") || "light";
+          var accent = localStorage.getItem("allco-theme-accent") || "neutro";
           var dark =
             mode === "dark" ||
             (mode === "system" &&

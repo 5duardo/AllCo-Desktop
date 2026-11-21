@@ -4,8 +4,10 @@ import {
   Eye,
   EyeOff,
   Lock,
+  LogIn,
   ScanBarcode,
   ShieldCheck,
+  UserRound,
   WifiOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -88,7 +90,7 @@ export function LoginPage() {
         className="absolute inset-0 h-full w-full scale-105 object-cover blur-[3px] brightness-[0.5]"
       />
       <div className="absolute right-4 top-4 z-10">
-        <ThemeToggle className="bg-surface text-fg hover:bg-hover" />
+        <ThemeToggle className="border border-border bg-surface text-fg hover:bg-hover" />
       </div>
 
       <div className="relative grid w-full max-w-5xl md:min-h-[610px] md:grid-cols-[1.08fr_0.92fr]">
@@ -99,7 +101,6 @@ export function LoginPage() {
               <Logo framed={false} className="h-11 w-11" />
               <div>
                 <p className="text-lg font-bold leading-tight">AllCo</p>
-                <p className="text-xs text-sidebar-muted">Inventario y caja</p>
               </div>
             </div>
             <span className="rounded-full bg-[#1b1d22] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-muted">
@@ -157,38 +158,54 @@ export function LoginPage() {
             <p className="mt-1 text-sm text-fg-muted">Tu negocio, bajo control.</p>
           </div>
 
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight text-fg">Iniciar sesión</h2>
-            <p className="mt-1.5 text-sm text-fg-muted">
-              Seleccione su usuario e ingrese la contraseña.
-            </p>
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg">
+              <LogIn className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-fg">Iniciar sesión</h2>
+              <p className="mt-1 text-sm text-fg-muted">
+                Seleccione su usuario e ingrese la contraseña.
+              </p>
+            </div>
           </div>
 
           <form onSubmit={onSubmit} className="mt-8 space-y-5">
             <div>
-              <Label htmlFor="login-usuario">Usuario</Label>
-              <Select
-                id="login-usuario"
-                value={usuario}
-                onChange={(e) => setUsuario(e.target.value)}
-                disabled={usuarios.length === 0}
-                aria-label="Usuario"
-              >
-                {usuarios.length === 0 ? (
-                  <option value="">Cargando usuarios…</option>
-                ) : (
-                  usuarios.map((u) => (
-                    <option key={u.id} value={u.usuario}>
-                      {u.nombre} · {rolLabel(u.rol)}
-                    </option>
-                  ))
-                )}
-              </Select>
+              <Label htmlFor="login-usuario" className="flex items-center gap-1.5">
+                <UserRound className="h-3.5 w-3.5" />
+                Usuario
+              </Label>
+              <div className="relative">
+                <UserRound className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-fg-faint" />
+                <Select
+                  id="login-usuario"
+                  value={usuario}
+                  onChange={(e) => setUsuario(e.target.value)}
+                  disabled={usuarios.length === 0}
+                  aria-label="Usuario"
+                  className="pl-10"
+                >
+                  {usuarios.length === 0 ? (
+                    <option value="">Cargando usuarios…</option>
+                  ) : (
+                    usuarios.map((u) => (
+                      <option key={u.id} value={u.usuario}>
+                        {u.nombre} · {u.dev ? "Desarrollador" : rolLabel(u.rol)}
+                      </option>
+                    ))
+                  )}
+                </Select>
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="login-password">Contraseña</Label>
+              <Label htmlFor="login-password" className="flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5" />
+                Contraseña
+              </Label>
               <div className="relative">
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-faint" />
                 <Input
                   id="login-password"
                   type={verPassword ? "text" : "password"}
@@ -197,7 +214,7 @@ export function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="pr-12"
+                  className="pl-10 pr-12"
                 />
                 <button
                   type="button"
@@ -210,7 +227,7 @@ export function LoginPage() {
               </div>
             </div>
 
-            {error ? <Alert className="mb-0">{error}</Alert> : null}
+            {error ? <Alert className="mb-5">{error}</Alert> : null}
 
             <Button
               type="submit"
@@ -218,18 +235,10 @@ export function LoginPage() {
               size="lg"
               disabled={loading || usuarios.length === 0}
             >
-              <Lock className="h-4 w-4" />
+              <LogIn className="h-4 w-4" />
               {loading ? "Entrando…" : "Entrar"}
             </Button>
           </form>
-
-          <div className="mt-8 rounded-xl bg-surface-2 px-4 py-3 text-xs text-fg-muted">
-            <p className="font-semibold text-fg">Primer uso</p>
-            <p className="mt-0.5">
-              Usuario <b className="text-fg">admin</b> · contraseña{" "}
-              <b className="text-fg">admin123</b>
-            </p>
-          </div>
 
           <p className="mt-6 text-xs text-fg-faint md:hidden">
             AllCo ·{" "}

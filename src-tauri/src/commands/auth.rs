@@ -21,6 +21,14 @@ pub fn require_roles(state: &AppState, roles: &[&str]) -> Result<UsuarioPublico,
     Ok(user)
 }
 
+pub fn require_dev(state: &AppState) -> Result<UsuarioPublico, String> {
+    let user = require_user(state)?;
+    if !user.dev {
+        return Err("Solo el usuario de desarrollo puede usar esta función.".into());
+    }
+    Ok(user)
+}
+
 #[tauri::command]
 pub fn login(
     state: State<AppState>,
@@ -30,7 +38,7 @@ pub fn login(
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let row = conn
         .query_row(
-            "SELECT id, nombre, usuario, password_hash, rol, activo
+            "SELECT id, nombre, usuario, password_hash, rol, activo, es_dev
              FROM usuarios WHERE lower(usuario) = lower(?1)",
             params![usuario.trim()],
             |r| {
@@ -41,6 +49,7 @@ pub fn login(
                     r.get::<_, String>(3)?,
                     r.get::<_, String>(4)?,
                     r.get::<_, i64>(5)? != 0,
+                    r.get::<_, i64>(6)? != 0,
                 ))
             },
         )
@@ -52,7 +61,7 @@ pub fn login(
         Err("Usuario o contraseña incorrectos.".into())
     };
 
-    let Some((id, nombre, user_name, hash, rol, activo)) = row else {
+    let Some((id, nombre, user_name, hash, rol, activo, dev)) = row else {
         return fail(&conn, "Usuario no existe");
     };
 
@@ -72,6 +81,7 @@ pub fn login(
         usuario: user_name,
         rol,
         activo: true,
+        dev,
     };
 
     conn.execute(
@@ -148,7 +158,7 @@ pub fn usuarios_login(state: State<AppState>) -> Result<Vec<UsuarioPublico>, Str
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, nombre, usuario, rol, activo FROM usuarios
+            "SELECT id, nombre, usuario, rol, activo, es_dev FROM usuarios
              WHERE activo = 1
              ORDER BY CASE rol WHEN 'admin' THEN 0 WHEN 'caja' THEN 1 ELSE 2 END, nombre",
         )

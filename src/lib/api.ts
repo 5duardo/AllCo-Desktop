@@ -1,12 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   CatalogoSimple,
+  Cliente,
+  ClienteIn,
   ConfigApp,
   DashboardData,
+  EstadoPruebas,
   EventoSistema,
+  MarcaNegocio,
   Movimiento,
   Producto,
   ReporteVentas,
+  ResumenVentas,
   Servicio,
   StatusSistema,
   Usuario,
@@ -56,8 +61,15 @@ export const api = {
   guardarServicio: (data: Record<string, unknown>) =>
     invoke<number>("guardar_servicio", { data }),
 
+  listarClientes: (q?: string, soloActivos = true) =>
+    invoke<Cliente[]>("listar_clientes", { q: q || null, soloActivos }),
+  guardarCliente: (data: ClienteIn) => invoke<number>("guardar_cliente", { data }),
+  facturasCliente: (clienteId: number) =>
+    invoke<VentaListado[]>("facturas_cliente", { clienteId }),
+
   crearVenta: (data: {
     sucursal_id?: number;
+    cliente_id?: number | null;
     items: VentaItemIn[];
     descuento: number;
     metodo_pago: string;
@@ -80,6 +92,8 @@ export const api = {
       desde: desde || null,
       hasta: hasta || null,
     }),
+  resumenVentas: (desde: string, hasta: string) =>
+    invoke<ResumenVentas>("resumen_ventas", { desde, hasta }),
   productosStockMinimo: () => invoke<Producto[]>("productos_stock_minimo"),
 
   listarUsuarios: () => invoke<Usuario[]>("listar_usuarios"),
@@ -87,10 +101,16 @@ export const api = {
     invoke<number>("guardar_usuario", { data }),
   obtenerConfig: () => invoke<ConfigApp>("obtener_config"),
   guardarConfig: (data: ConfigApp) => invoke<void>("guardar_config", { data }),
+  marcaNegocio: () => invoke<MarcaNegocio>("marca_negocio"),
   bitacora: (tipo?: string) =>
     invoke<EventoSistema[]>("bitacora", { tipo: tipo || null }),
   statusSistema: () => invoke<StatusSistema>("status_sistema"),
   respaldoLocal: () => invoke<string>("respaldo_local"),
+  eliminarDatos: () => invoke<string>("eliminar_datos"),
   abrirCarpetaDatos: () => invoke<void>("abrir_carpeta_datos"),
   abrirCarpetaRespaldos: () => invoke<void>("abrir_carpeta_respaldos"),
+
+  estadoPruebas: () => invoke<EstadoPruebas>("estado_pruebas"),
+  agregarDatosEjemplo: (tipo: string) =>
+    invoke<EstadoPruebas>("agregar_datos_ejemplo", { tipo }),
 };

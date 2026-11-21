@@ -1,15 +1,16 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowDownUp, History, Plus, Search } from "lucide-react";
+import { ArrowDownUp, History, LayoutGrid, List, Package, Plus, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { fechaHora, lempiras } from "@/lib/format";
 import type { CatalogoSimple, Movimiento, Producto } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
-import { PageHeader } from "@/components/layout/PageHeader";
+import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { cn } from "@/lib/utils";
 
 const emptyForm = {
   id: undefined as number | undefined,
@@ -29,9 +30,15 @@ const emptyForm = {
   activo: true,
 };
 
+const VISTA_KEY = "allco-inventario-vista";
+type Vista = "tabla" | "cajas";
+
 export function InventarioPage() {
   const { user } = useAuth();
   const isAdmin = user?.rol === "admin";
+  const [vista, setVista] = useState<Vista>(() =>
+    localStorage.getItem(VISTA_KEY) === "cajas" ? "cajas" : "tabla",
+  );
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Producto[]>([]);
   const [proveedores, setProveedores] = useState<CatalogoSimple[]>([]);
@@ -127,23 +134,41 @@ export function InventarioPage() {
     }
   }
 
+  function cambiarVista(v: Vista) {
+    setVista(v);
+    localStorage.setItem(VISTA_KEY, v);
+  }
+
+  function abrirMovimiento(p: Producto) {
+    setMov(p);
+    setMovCant(1);
+    setMovMotivo("");
+  }
+
   return (
     <div className="page">
-      <PageHeader title="Inventario" subtitle="Llantas y productos · kardex y stock mínimo">
+      <PageHero
+        title="Inventario"
+        subtitle="Productos y existencias · kardex y stock mínimo"
+        description="Registra productos, controla entradas y salidas, revisa el stock mínimo y consulta el kardex de cada artículo."
+        icon={Package}
+        badge={`${rows.length} productos`}
+      />
+      <div className="mb-4 flex flex-wrap justify-end gap-2">
         <Button variant="outline" onClick={() => openKardex()}>
           <History className="h-4 w-4" />
           Kardex general
         </Button>
         <Button onClick={() => edit()}>
           <Plus className="h-4 w-4" />
-          Nueva llanta
+          Nuevo producto
         </Button>
-      </PageHeader>
+      </div>
       {error ? <Alert>{error}</Alert> : null}
 
       <Card className="mb-4 p-3">
-        <form onSubmit={search} className="flex gap-2">
-          <div className="relative flex-1">
+        <form onSubmit={search} className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-56 flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-faint" />
             <Input
               value={q}
@@ -152,82 +177,167 @@ export function InventarioPage() {
               className="pl-10"
             />
           </div>
+          <div className="seg" role="group" aria-label="Vista de inventario">
+            <button
+              type="button"
+              onClick={() => cambiarVista("tabla")}
+              aria-pressed={vista === "tabla"}
+              className={cn("seg-item", vista === "tabla" && "seg-item-active")}
+            >
+              <List className="h-4 w-4" />
+              Tabla
+            </button>
+            <button
+              type="button"
+              onClick={() => cambiarVista("cajas")}
+              aria-pressed={vista === "cajas"}
+              className={cn("seg-item", vista === "cajas" && "seg-item-active")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Cajas
+            </button>
+          </div>
           <Button type="submit" variant="secondary">
             Buscar
           </Button>
         </form>
       </Card>
 
-      <Card className="overflow-x-auto">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Código</th>
-              <th>Medida</th>
-              {isAdmin ? <th className="num">Costo</th> : null}
-              <th className="num">Precio</th>
-              <th className="num">Stock</th>
-              <th>Estado</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((p) => (
-              <tr key={p.id} className={!p.activo ? "opacity-55" : undefined}>
-                <td>
-                  <p className="font-medium">{p.nombre}</p>
-                  <p className="text-xs text-fg-muted">
+      {vista === "tabla" ? (
+        <Card className="overflow-x-auto">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Código</th>
+                <th>Medida</th>
+                {isAdmin ? <th className="num">Costo</th> : null}
+                <th className="num">Precio</th>
+                <th className="num">Stock</th>
+                <th>Estado</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <p className="font-medium">{p.nombre}</p>
+                    <p className="text-xs text-fg-muted">
+                      {p.marca} {p.modelo}
+                    </p>
+                  </td>
+                  <td className="font-mono text-xs text-fg-muted">{p.codigo_barras}</td>
+                  <td>{p.medida}</td>
+                  {isAdmin ? <td className="num">{lempiras(p.costo ?? 0)}</td> : null}
+                  <td className="num font-semibold">{lempiras(p.precio_venta)}</td>
+                  <td className="num">
+                    {p.stock <= p.stock_minimo ? (
+                      <Badge tone="warn">{p.stock}</Badge>
+                    ) : (
+                      <span className="font-semibold">{p.stock}</span>
+                    )}
+                  </td>
+                  <td>{p.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
+                  <td>
+                    <div className="flex justify-end gap-1.5">
+                      <Button size="sm" variant="outline" onClick={() => edit(p)}>
+                        Editar
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => abrirMovimiento(p)}>
+                        <ArrowDownUp className="h-3.5 w-3.5" />
+                        Mover
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => openKardex(p)}>
+                        Kardex
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length === 0 ? (
+            <p className="empty-state">No se encontraron productos con ese criterio.</p>
+          ) : null}
+        </Card>
+      ) : rows.length === 0 ? (
+        <Card>
+          <p className="empty-state">No se encontraron productos con ese criterio.</p>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {rows.map((p) => (
+            <Card key={p.id} className="flex h-full flex-col p-4">
+              <div className="flex items-start gap-3">
+                <span className="icon-chip">
+                  <Package className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{p.nombre}</p>
+                  <p className="truncate text-xs text-fg-muted">
                     {p.marca} {p.modelo}
                   </p>
-                </td>
-                <td className="font-mono text-xs text-fg-muted">{p.codigo_barras}</td>
-                <td>{p.medida}</td>
-                {isAdmin ? <td className="num">{lempiras(p.costo ?? 0)}</td> : null}
-                <td className="num font-semibold">{lempiras(p.precio_venta)}</td>
-                <td className="num">
-                  {p.stock <= p.stock_minimo ? (
-                    <Badge tone="warn">{p.stock}</Badge>
-                  ) : (
-                    <span className="font-semibold">{p.stock}</span>
-                  )}
-                </td>
-                <td>{p.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
-                <td>
-                  <div className="flex justify-end gap-1.5">
-                    <Button size="sm" variant="outline" onClick={() => edit(p)}>
-                      Editar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        setMov(p);
-                        setMovCant(1);
-                        setMovMotivo("");
-                      }}
-                    >
-                      <ArrowDownUp className="h-3.5 w-3.5" />
-                      Mover
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => openKardex(p)}>
-                      Kardex
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length === 0 ? (
-          <p className="empty-state">No se encontraron productos con ese criterio.</p>
-        ) : null}
-      </Card>
+                </div>
+                {p.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Inactivo</Badge>}
+              </div>
+
+              <div className="mt-4 flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-2xl font-bold tabular-nums">
+                    {lempiras(p.precio_venta)}
+                  </p>
+                  {isAdmin ? (
+                    <p className="mt-0.5 text-xs text-fg-muted">
+                      Costo {lempiras(p.costo ?? 0)}
+                    </p>
+                  ) : null}
+                </div>
+                <Badge tone={p.stock <= p.stock_minimo ? "warn" : "default"}>
+                  {p.stock} en stock
+                </Badge>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-lg bg-surface-2 px-2.5 py-2">
+                  <p className="text-fg-muted">Medida</p>
+                  <p className="mt-0.5 truncate font-medium">{p.medida || "—"}</p>
+                </div>
+                <div className="rounded-lg bg-surface-2 px-2.5 py-2">
+                  <p className="text-fg-muted">Mínimo</p>
+                  <p className="mt-0.5 font-medium">{p.stock_minimo}</p>
+                </div>
+                <div className="rounded-lg bg-surface-2 px-2.5 py-2">
+                  <p className="text-fg-muted">Lote</p>
+                  <p className="mt-0.5 truncate font-medium">{p.dot || "—"}</p>
+                </div>
+              </div>
+
+              <p className="mt-3 truncate font-mono text-xs text-fg-muted">
+                {p.codigo_barras || "Sin código de barras"}
+              </p>
+
+              <div className="mt-auto flex flex-wrap gap-2 pt-4">
+                <Button size="sm" variant="outline" onClick={() => edit(p)}>
+                  Editar
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => abrirMovimiento(p)}>
+                  <ArrowDownUp className="h-3.5 w-3.5" />
+                  Mover
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => openKardex(p)}>
+                  Kardex
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Modal
         open={open}
-        title={form.id ? "Editar producto" : "Nueva llanta"}
-        subtitle={form.id ? `Ficha #${form.id}` : "Registre una llanta o producto nuevo"}
+        title={form.id ? "Editar producto" : "Nuevo producto"}
+        subtitle={form.id ? `Ficha #${form.id}` : "Registre un producto nuevo"}
         onClose={() => setOpen(false)}
         wide
       >
@@ -250,14 +360,14 @@ export function InventarioPage() {
           </div>
           <div>
             <Label>Medida</Label>
-            <Input value={form.medida} onChange={(e) => setForm({ ...form, medida: e.target.value })} placeholder="205/55R16" />
+            <Input value={form.medida} onChange={(e) => setForm({ ...form, medida: e.target.value })} placeholder="Ej. 500 ml, talla M" />
           </div>
           <div>
             <Label>Modelo</Label>
             <Input value={form.modelo} onChange={(e) => setForm({ ...form, modelo: e.target.value })} />
           </div>
           <div>
-            <Label>DOT</Label>
+            <Label>Lote / DOT</Label>
             <Input value={form.dot} onChange={(e) => setForm({ ...form, dot: e.target.value })} />
           </div>
           <div>
