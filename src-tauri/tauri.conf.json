@@ -20,12 +20,30 @@
   "app": {
     "windows": [
       {
+        "label": "splash",
+        "title": "AllCo",
+        "width": 360,
+        "height": 300,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "decorations": false,
+        "center": true,
+        "visible": true,
+        "focus": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true
+      },
+      {
+        "label": "main",
         "title": "AllCo",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,
         "minHeight": 700,
-        "maximized": true
+        "maximized": true,
+        "visible": false,
+        "decorations": false
       }
     ],
     "security": {

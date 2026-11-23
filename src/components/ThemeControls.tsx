@@ -1,5 +1,11 @@
 import { Check, Monitor, Moon, Sun } from "lucide-react";
-import { ACCENTS, useTheme, type ThemeMode } from "@/context/ThemeContext";
+import {
+  ACCENTS,
+  FONTS,
+  useTheme,
+  type FontId,
+  type ThemeMode,
+} from "@/context/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -46,15 +52,29 @@ export function ThemeModePicker() {
   );
 }
 
+/** Texto (claro u oscuro) que contrasta sobre el color indicado. */
+function contraste(hex: string) {
+  const limpio = hex.replace("#", "");
+  const completo =
+    limpio.length === 3
+      ? limpio
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : limpio;
+  const r = parseInt(completo.slice(0, 2), 16) / 255;
+  const g = parseInt(completo.slice(2, 4), 16) / 255;
+  const b = parseInt(completo.slice(4, 6), 16) / 255;
+  const luz = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luz > 0.6 ? "#111827" : "#ffffff";
+}
+
 export function AccentPicker() {
   const { accent, resolvedMode, setAccent } = useTheme();
   return (
     <div className="flex flex-wrap gap-2.5" role="group" aria-label="Color del tema">
       {ACCENTS.map((a) => {
-        const neutro = a.id === "neutro";
-        const bg = neutro ? (resolvedMode === "dark" ? "#f3f4f6" : "#08090a") : a.hex;
-        const fg =
-          a.id === "amber" || (neutro && resolvedMode === "dark") ? "#111827" : "#ffffff";
+        const bg = resolvedMode === "dark" ? a.hexDark : a.hex;
         return (
           <button
             key={a.id}
@@ -67,12 +87,48 @@ export function AccentPicker() {
               "flex h-10 w-10 items-center justify-center rounded-xl transition-all hover:scale-105",
               accent === a.id && "scale-105",
             )}
-            style={{ backgroundColor: bg, color: fg }}
+            style={{ backgroundColor: bg, color: contraste(bg) }}
           >
             {accent === a.id ? <Check className="h-5 w-5" strokeWidth={3} /> : null}
           </button>
         );
       })}
+    </div>
+  );
+}
+
+export function FontPicker() {
+  const { font, setFont } = useTheme();
+  const elegir = (id: FontId) => setFont(id);
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Tipografía">
+      {FONTS.map((f) => (
+        <button
+          key={f.id}
+          type="button"
+          onClick={() => elegir(f.id)}
+          aria-pressed={font === f.id}
+          title={f.label}
+          className={cn(
+            "flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+            font === f.id
+              ? "border-accent bg-accent-soft"
+              : "border-border bg-surface-2 hover:bg-hover",
+          )}
+          style={{ fontFamily: f.stack }}
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-fg">{f.label}</span>
+            <span className="mt-0.5 block truncate text-xs text-fg-muted">
+              Aa Bb Cc · 0123
+            </span>
+          </span>
+          {font === f.id ? (
+            <Check className="h-4 w-4 shrink-0 text-accent-fg" strokeWidth={3} />
+          ) : null}
+        </button>
+      ))}
     </div>
   );
 }

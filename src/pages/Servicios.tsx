@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Clock, Pencil, Plus, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 import { lempiras } from "@/lib/format";
 import type { Servicio } from "@/lib/types";
-import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
@@ -20,17 +20,17 @@ const empty = {
 };
 
 export function ServiciosPage() {
+  const toast = useToast();
   const [rows, setRows] = useState<Servicio[]>([]);
   const [form, setForm] = useState(empty);
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState("");
 
   async function load() {
     setRows(await api.listarServicios(false));
   }
 
   useEffect(() => {
-    load().catch((e) => setError(String(e)));
+    load().catch((e) => toast.error(String(e)));
   }, []);
 
   async function save(e: FormEvent) {
@@ -39,8 +39,9 @@ export function ServiciosPage() {
       await api.guardarServicio(form);
       setOpen(false);
       await load();
+      toast.ok(form.id ? "Servicio actualizado." : "Servicio guardado.");
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
@@ -64,7 +65,6 @@ export function ServiciosPage() {
           Nuevo servicio
         </Button>
       </div>
-      {error ? <Alert>{error}</Alert> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {rows.map((s) => (

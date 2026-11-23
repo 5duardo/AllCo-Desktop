@@ -18,6 +18,7 @@ pub struct AppState {
     pub sesion_inicio: Mutex<Option<String>>,
     pub started_at: String,
     pub last_scan: Mutex<Option<String>>,
+    pub version_disponible: Mutex<Option<String>>,
     pub dispositivos_cache: Mutex<crate::commands::dispositivos::DispositivosCache>,
 }
 
@@ -75,6 +76,7 @@ pub fn run() {
                 sesion_inicio: Mutex::new(None),
                 started_at: db::now(),
                 last_scan: Mutex::new(None),
+                version_disponible: Mutex::new(None),
                 dispositivos_cache: Mutex::new(Default::default()),
             });
             Ok(())
@@ -120,6 +122,8 @@ pub fn run() {
             obtener_config,
             guardar_config,
             marca_negocio,
+            guardar_version_disponible,
+            version_disponible,
             bitacora,
             status_sistema,
             respaldo_local,

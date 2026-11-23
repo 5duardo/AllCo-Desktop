@@ -245,6 +245,26 @@ export function DashboardPage() {
 
   const serie = useMemo(() => (resumen?.serie ?? []).slice(-30), [resumen]);
 
+  const [ahora, setAhora] = useState(() => new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setAhora(new Date()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const fechaLarga = ahora
+    .toLocaleDateString("es-HN", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })
+    .replace(/^./, (c) => c.toUpperCase());
+  const hora12 = ahora.toLocaleTimeString("es-HN", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
   return (
     <div className="page">
       {error ? <Alert>{error}</Alert> : null}
@@ -259,7 +279,12 @@ export function DashboardPage() {
         description="Vista consolidada de ventas, actividad y alertas del negocio. Cambia el periodo para analizar otros rangos."
         icon={BarChart3}
         badge={`${periodoLabel} · ${rangoTexto}`}
-      />
+      >
+        <div className="text-left sm:text-right">
+          <p className="text-sm font-semibold">{fechaLarga}</p>
+          <p className="mt-0.5 text-xs font-medium text-on-accent/75">{hora12}</p>
+        </div>
+      </PageHero>
 
       {/* Filtros y accesos */}
       <div className="flex flex-wrap items-center justify-between gap-3">

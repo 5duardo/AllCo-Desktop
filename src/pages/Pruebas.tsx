@@ -8,8 +8,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 import type { EstadoPruebas } from "@/lib/types";
-import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Card, Stat } from "@/components/ui/card";
@@ -23,29 +23,26 @@ const TIPOS = [
 ];
 
 export function PruebasPage() {
+  const toast = useToast();
   const [estado, setEstado] = useState<EstadoPruebas | null>(null);
   const [busy, setBusy] = useState("");
-  const [msg, setMsg] = useState("");
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    api.estadoPruebas().then(setEstado).catch((e) => setError(String(e)));
+    api.estadoPruebas().then(setEstado).catch((e) => toast.error(String(e)));
   }, []);
 
   async function agregar(tipo: string) {
     setBusy(tipo);
-    setError("");
-    setMsg("");
     try {
       const nuevo = await api.agregarDatosEjemplo(tipo);
       setEstado(nuevo);
-      setMsg(
+      toast.ok(
         tipo === "todo"
           ? "Datos de ejemplo agregados."
           : `Datos de ejemplo (${tipo}) agregados.`,
       );
     } catch (e) {
-      setError(String(e));
+      toast.error(String(e));
     } finally {
       setBusy("");
     }
@@ -60,8 +57,6 @@ export function PruebasPage() {
         icon={FlaskConical}
         badge="Solo desarrollador"
       />
-      {error ? <Alert>{error}</Alert> : null}
-      {msg ? <Alert tone="ok">{msg}</Alert> : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat

@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Contact, Pencil, Plus, Receipt, Search } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 import { fechaHora, lempiras, pagoLabel } from "@/lib/format";
 import type { Cliente, ClienteIn, VentaListado } from "@/lib/types";
-import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
@@ -20,9 +20,9 @@ const empty: ClienteIn = {
 };
 
 export function ClientesPage() {
+  const toast = useToast();
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Cliente[]>([]);
-  const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ClienteIn>(empty);
 
@@ -35,7 +35,7 @@ export function ClientesPage() {
   }
 
   useEffect(() => {
-    load().catch((e) => setError(String(e)));
+    load().catch((e) => toast.error(String(e)));
   }, []);
 
   async function search(e: FormEvent) {
@@ -43,7 +43,7 @@ export function ClientesPage() {
     try {
       setRows(await api.listarClientes(q, false));
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
@@ -69,8 +69,9 @@ export function ClientesPage() {
       await api.guardarCliente(form);
       setOpen(false);
       await load();
+      toast.ok(form.id ? "Cliente actualizado." : "Cliente guardado.");
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
@@ -81,7 +82,7 @@ export function ClientesPage() {
     try {
       setFacturas(await api.facturasCliente(c.id));
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     } finally {
       setCargandoFacturas(false);
     }
@@ -102,7 +103,6 @@ export function ClientesPage() {
           Nuevo cliente
         </Button>
       </div>
-      {error ? <Alert>{error}</Alert> : null}
 
       <Card className="mb-4 p-3">
         <form onSubmit={search} className="flex flex-wrap items-center gap-2">
@@ -240,36 +240,38 @@ export function ClientesPage() {
         ) : facturas.length === 0 ? (
           <p className="empty-state">Este cliente todavía no tiene facturas.</p>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Factura</th>
-                <th>Fecha</th>
-                <th>Cajero</th>
-                <th>Pago</th>
-                <th>Estado</th>
-                <th className="num">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {facturas.map((v) => (
-                <tr key={v.id}>
-                  <td className="font-semibold">#{v.id}</td>
-                  <td className="whitespace-nowrap text-fg-muted">{fechaHora(v.fecha)}</td>
-                  <td>{v.usuario_nombre}</td>
-                  <td>{pagoLabel(v.metodo_pago)}</td>
-                  <td>
-                    {v.estado === "anulada" ? (
-                      <Badge tone="danger">Anulada</Badge>
-                    ) : (
-                      <Badge tone="ok">Completada</Badge>
-                    )}
-                  </td>
-                  <td className="num font-semibold">{lempiras(v.total)}</td>
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Factura</th>
+                  <th>Fecha</th>
+                  <th>Cajero</th>
+                  <th>Pago</th>
+                  <th>Estado</th>
+                  <th className="num">Total</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {facturas.map((v) => (
+                  <tr key={v.id}>
+                    <td className="font-semibold">#{v.id}</td>
+                    <td className="whitespace-nowrap text-fg-muted">{fechaHora(v.fecha)}</td>
+                    <td>{v.usuario_nombre}</td>
+                    <td>{pagoLabel(v.metodo_pago)}</td>
+                    <td>
+                      {v.estado === "anulada" ? (
+                        <Badge tone="danger">Anulada</Badge>
+                      ) : (
+                        <Badge tone="ok">Completada</Badge>
+                      )}
+                    </td>
+                    <td className="num font-semibold">{lempiras(v.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Modal>
     </div>

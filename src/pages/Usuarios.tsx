@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Pencil, Plus, Users } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
 import { rolLabel } from "@/lib/format";
 import type { Usuario } from "@/lib/types";
-import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
@@ -21,18 +21,18 @@ const empty = {
 };
 
 export function UsuariosPage() {
+  const toast = useToast();
   const { user } = useAuth();
   const [rows, setRows] = useState<Usuario[]>([]);
   const [form, setForm] = useState(empty);
   const [open, setOpen] = useState(false);
-  const [error, setError] = useState("");
 
   async function load() {
     setRows(await api.listarUsuarios());
   }
 
   useEffect(() => {
-    load().catch((e) => setError(String(e)));
+    load().catch((e) => toast.error(String(e)));
   }, []);
 
   async function save(e: FormEvent) {
@@ -44,8 +44,9 @@ export function UsuariosPage() {
       });
       setOpen(false);
       await load();
+      toast.ok(form.id ? "Usuario actualizado." : "Usuario creado.");
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
@@ -69,7 +70,6 @@ export function UsuariosPage() {
           Nuevo usuario
         </Button>
       </div>
-      {error ? <Alert>{error}</Alert> : null}
 
       <Card className="overflow-x-auto">
         <table className="table">

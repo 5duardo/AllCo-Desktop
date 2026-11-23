@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Printer, RefreshCw, ScanBarcode, Usb } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 import { fechaHora } from "@/lib/format";
 import type { DispositivosData } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
@@ -10,18 +11,16 @@ import { Badge, Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 
 export function DispositivosPage() {
+  const toast = useToast();
   const [data, setData] = useState<DispositivosData | null>(null);
   const [cargando, setCargando] = useState(false);
   const [probando, setProbando] = useState("");
-  const [error, setError] = useState("");
-  const [aviso, setAviso] = useState("");
   const [scan, setScan] = useState("");
   const [scanResultado, setScanResultado] = useState("");
   const reintentos = useRef(0);
 
   async function cargar(silencioso = false) {
     if (!silencioso) setCargando(true);
-    setError("");
     try {
       const d = await api.listarDispositivos();
       setData(d);
@@ -33,7 +32,7 @@ export function DispositivosPage() {
         reintentos.current = 0;
       }
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     } finally {
       if (!silencioso) setCargando(false);
     }
@@ -46,7 +45,7 @@ export function DispositivosPage() {
       setData(await api.actualizarDispositivos());
       window.setTimeout(() => void cargar(true), 1200);
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     } finally {
       setCargando(false);
     }
@@ -61,28 +60,26 @@ export function DispositivosPage() {
     modo: "usb" | "spooler",
     ruta = "",
   ) {
-    setError("");
     try {
       await api.guardarImpresoraTicket(nombre, modo, ruta);
-      setAviso(
+      toast.ok(
         `"${nombre}" quedó seleccionada para imprimir las facturas de caja${
           modo === "usb" ? " mediante conexión directa USB (sin driver)." : "."
         }`,
       );
       setData((d) => (d ? { ...d, impresora_ticket: nombre, modo } : d));
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
   async function probar(nombre: string, modo: "usb" | "spooler", ruta = "") {
     setProbando(nombre);
-    setError("");
     try {
       await api.imprimirPrueba(nombre, modo, ruta);
-      setAviso(`Página de prueba enviada a "${nombre}".`);
+      toast.ok(`Página de prueba enviada a "${nombre}".`);
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     } finally {
       setProbando("");
     }
@@ -101,7 +98,7 @@ export function DispositivosPage() {
       );
       setData((d) => (d ? { ...d, ultimo_escaneo: new Date().toISOString() } : d));
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
@@ -126,9 +123,11 @@ export function DispositivosPage() {
           {cargando ? "Detectando…" : "Actualizar"}
         </Button>
       </div>
-      {error ? <Alert>{error}</Alert> : null}
-      {data?.errores.map((e) => <Alert key={e} tone="warn">{e}</Alert>)}
-      {aviso ? <Alert tone="ok">{aviso}</Alert> : null}
+      {data?.errores.map((e) => (
+        <Alert key={e} tone="warn">
+          {e}
+        </Alert>
+      ))}
 
       <section className="mb-6">
         <h2 className="mb-3 flex items-center gap-2 text-base font-bold">

@@ -14,15 +14,29 @@
         try {
           var mode = localStorage.getItem("allco-theme-mode") || "light";
           var accent = localStorage.getItem("allco-theme-accent") || "neutro";
+          var font = localStorage.getItem("allco-theme-font") || "dm-sans";
           var dark =
             mode === "dark" ||
             (mode === "system" &&
               window.matchMedia("(prefers-color-scheme: dark)").matches);
           document.documentElement.dataset.mode = dark ? "dark" : "light";
           document.documentElement.dataset.accent = accent;
+          document.documentElement.dataset.font = font;
         } catch (e) {}
       })();
     </script>
+    <style>
+      /* Pinta el fondo antes de que cargue el CSS de la app (evita el flash blanco). */
+      html,
+      body {
+        margin: 0;
+        background: #f6f7f9;
+      }
+      html[data-mode="dark"],
+      html[data-mode="dark"] body {
+        background: #08090a;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

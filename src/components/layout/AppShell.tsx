@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { check } from "@tauri-apps/plugin-updater";
 import {
   ArrowLeftRight,
   ArrowUpRight,
@@ -12,9 +11,11 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  Power,
   Sun,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { exit } from "@tauri-apps/plugin-process";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -46,7 +47,9 @@ import {
   WrenchIcon as WrenchSolidIcon,
 } from "@heroicons/react/24/solid";
 import { useAuth } from "@/context/AuthContext";
+import { useFullscreen } from "@/context/FullscreenContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useUpdates } from "@/context/UpdateContext";
 import { BrandLogo } from "@/components/BrandLogo";
 import { api } from "@/lib/api";
 import { rolLabel } from "@/lib/format";
@@ -71,7 +74,7 @@ const NAV: {
   roles: Rol[];
   devOnly?: boolean;
 }[] = [
-  { to: "/", label: "Inicio", icon: HomeIcon, iconSolid: HomeSolidIcon, group: "operacion", roles: ["admin", "caja", "bodega"] },
+  { to: "/", label: "Resumen", icon: HomeIcon, iconSolid: HomeSolidIcon, group: "operacion", roles: ["admin", "caja", "bodega"] },
   { to: "/pos", label: "Caja", icon: ShoppingCartIcon, iconSolid: ShoppingCartSolidIcon, group: "operacion", roles: ["admin", "caja"] },
   { to: "/clientes", label: "Clientes", icon: IdentificationIcon, iconSolid: IdentificationSolidIcon, group: "operacion", roles: ["admin", "caja"] },
   { to: "/dispositivos", label: "Dispositivos", icon: PrinterIcon, iconSolid: PrinterSolidIcon, group: "operacion", roles: ["admin", "caja"] },
@@ -116,6 +119,8 @@ function ProfileMenuItem({
 export function AppShell() {
   const { user, logout } = useAuth();
   const { accent, resolvedMode, toggleMode } = useTheme();
+  const { pantallaCompleta } = useFullscreen();
+  const { nuevaVersion } = useUpdates();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem(COLLAPSE_KEY) === "1",
@@ -123,26 +128,13 @@ export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [soporteOpen, setSoporteOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [nuevaVersion, setNuevaVersion] = useState<string | null>(null);
+  const [confirmSalir, setConfirmSalir] = useState(false);
   const [marca, setMarca] = useState<MarcaNegocio | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0");
   }, [collapsed]);
-
-  // Búsqueda automática de actualizaciones al abrir la app.
-  useEffect(() => {
-    let vigente = true;
-    check()
-      .then((u) => {
-        if (vigente && u) setNuevaVersion(u.version);
-      })
-      .catch(() => {});
-    return () => {
-      vigente = false;
-    };
-  }, []);
 
   // Nombre y logo del negocio para la marca del sidebar.
   useEffect(() => {
@@ -202,11 +194,12 @@ export function AppShell() {
     .toUpperCase();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg">
+    <div className="flex h-full overflow-hidden bg-bg">
       <aside
         className={cn(
-          "relative z-10 flex shrink-0 flex-col bg-sidebar text-sidebar-fg transition-[width] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          "relative z-10 flex shrink-0 flex-col bg-sidebar text-sidebar-fg transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
           collapsed ? "w-20" : "w-64",
+          pantallaCompleta && "hidden",
         )}
       >
         <button
@@ -226,8 +219,8 @@ export function AppShell() {
 
         <div
           className={cn(
-            "flex items-center gap-3 px-5 py-5",
-            collapsed && "justify-center px-2",
+            "flex items-center gap-3 overflow-hidden py-5 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            collapsed ? "px-[18px]" : "px-5",
           )}
           title={collapsed ? nombreNegocio : undefined}
         >
@@ -238,33 +231,37 @@ export function AppShell() {
           />
           <div
             className={cn(
-              "min-w-0 flex-1 overflow-hidden whitespace-nowrap transition-all duration-200",
-              collapsed && "pointer-events-none w-0 flex-none opacity-0",
+              "min-w-0 overflow-hidden transition-[max-width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+              collapsed
+                ? "max-w-0 -translate-x-2 opacity-0"
+                : "max-w-[200px] translate-x-0 opacity-100",
             )}
           >
-            <p className="truncate text-base font-bold leading-tight">{nombreNegocio}</p>
-            <p className="truncate text-[11px] text-sidebar-muted">
+            <p className="truncate whitespace-nowrap text-base font-bold leading-tight">
+              {nombreNegocio}
+            </p>
+            <p className="truncate whitespace-nowrap text-[11px] text-sidebar-muted">
               Impulsado por <span className="font-medium text-sidebar-fg">AllCo</span>
             </p>
           </div>
         </div>
 
-        <nav
-          className={cn("flex-1 overflow-y-auto p-3", collapsed && "px-2.5")}
-          aria-label="Menú principal"
-        >
+        <nav className="flex-1 overflow-y-auto p-3" aria-label="Menú principal">
           {GRUPOS.map((grupo, indice) => {
             const visibles = items.filter((item) => item.group === grupo.id);
             if (visibles.length === 0) return null;
             return (
               <div key={grupo.id} className={cn(indice > 0 && "mt-4")}>
-                {!collapsed ? (
-                  <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-muted">
+                <div
+                  className={cn(
+                    "overflow-hidden transition-[max-height,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                    collapsed ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
+                  )}
+                >
+                  <p className="whitespace-nowrap px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-muted">
                     {grupo.label}
                   </p>
-                ) : indice > 0 ? (
-                  <div className="mx-auto mb-3 h-1 w-8 rounded-full bg-sidebar-border" />
-                ) : null}
+                </div>
                 <div className="space-y-1">
                   {visibles.map((item) => (
                     <NavLink
@@ -275,8 +272,8 @@ export function AppShell() {
                       aria-label={item.label}
                       className={({ isActive }) =>
                         cn(
-                          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
-                          collapsed && "justify-center gap-0 px-2 py-3",
+                          "sidebar-link flex items-center gap-3 rounded-xl py-2.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+                          collapsed ? "px-[19px]" : "px-3",
                           isActive
                             ? neutralOnDarkSidebar
                               ? "bg-[#1d1f23] text-white"
@@ -292,8 +289,10 @@ export function AppShell() {
                             <Icon className="h-[18px] w-[18px] shrink-0" />
                             <span
                               className={cn(
-                                "truncate whitespace-nowrap transition-all duration-200",
-                                collapsed && "w-0 -translate-x-1 opacity-0",
+                                "block min-w-0 overflow-hidden whitespace-nowrap text-left transition-[max-width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                                collapsed
+                                  ? "max-w-0 -translate-x-1 opacity-0"
+                                  : "max-w-[200px] translate-x-0 opacity-100",
                               )}
                             >
                               {item.label}
@@ -309,13 +308,16 @@ export function AppShell() {
           })}
 
           <div className="mt-4">
-            {!collapsed ? (
-              <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-muted">
+            <div
+              className={cn(
+                "overflow-hidden transition-[max-height,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                collapsed ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
+              )}
+            >
+              <p className="whitespace-nowrap px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-sidebar-muted">
                 Ayuda
               </p>
-            ) : (
-              <div className="mx-auto mb-3 h-1 w-8 rounded-full bg-sidebar-border" />
-            )}
+            </div>
             <button
               type="button"
               onClick={() => setSoporteOpen(true)}
@@ -323,8 +325,8 @@ export function AppShell() {
               aria-label="Soporte"
               aria-haspopup="dialog"
               className={cn(
-                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
-                collapsed && "justify-center gap-0 px-2 py-3",
+                "sidebar-link flex w-full items-center gap-3 rounded-xl py-2.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+                collapsed ? "px-[19px]" : "px-3",
                 soporteOpen
                   ? "bg-sidebar-hover text-sidebar-fg"
                   : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-fg",
@@ -333,8 +335,10 @@ export function AppShell() {
               <LifeBuoy className="h-[18px] w-[18px] shrink-0" />
               <span
                 className={cn(
-                  "truncate whitespace-nowrap transition-all duration-200",
-                  collapsed && "w-0 -translate-x-1 opacity-0",
+                  "block min-w-0 overflow-hidden whitespace-nowrap text-left transition-[max-width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  collapsed
+                    ? "max-w-0 -translate-x-1 opacity-0"
+                    : "max-w-[200px] translate-x-0 opacity-100",
                 )}
               >
                 Soporte
@@ -344,10 +348,7 @@ export function AppShell() {
         </nav>
 
         {/* Mini perfil con menú */}
-        <div
-          ref={menuRef}
-          className={cn("relative p-3", collapsed && "px-2")}
-        >
+        <div ref={menuRef} className="relative p-3">
           {menuOpen ? (
             <div
               className={cn(
@@ -384,6 +385,16 @@ export function AppShell() {
                   setConfirmLogout(true);
                 }}
               />
+              <div className="mx-2 my-1 h-px bg-[var(--menu-hover)]" />
+              <ProfileMenuItem
+                icon={Power}
+                label="Salir de la app"
+                danger
+                onClick={() => {
+                  setMenuOpen(false);
+                  setConfirmSalir(true);
+                }}
+              />
             </div>
           ) : null}
 
@@ -398,8 +409,8 @@ export function AppShell() {
                 : undefined
             }
             className={cn(
-              "flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left outline-none transition-colors hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
-              collapsed && "justify-center px-0",
+              "sidebar-link flex w-full items-center gap-3 rounded-xl py-2 text-left outline-none hover:bg-sidebar-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+              collapsed ? "px-[10px]" : "px-2",
               menuOpen && "bg-sidebar-hover",
             )}
           >
@@ -412,24 +423,29 @@ export function AppShell() {
                 title="Sesión activa"
               />
             </span>
-            {!collapsed ? (
-              <>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold leading-tight">
-                    {user.nombre}
-                  </span>
-                  <span className="mt-0.5 block truncate text-xs text-sidebar-muted">
-                    {user.dev ? "Desarrollador" : rolLabel(user.rol)}
-                  </span>
+            <span
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-left transition-[max-width,opacity,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                collapsed
+                  ? "max-w-0 -translate-x-1 opacity-0"
+                  : "max-w-[170px] translate-x-0 opacity-100",
+              )}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold leading-tight">
+                  {user.nombre}
                 </span>
-                <ChevronsUpDown className="h-4 w-4 shrink-0 text-sidebar-muted" />
-              </>
-            ) : null}
+                <span className="mt-0.5 block truncate text-xs text-sidebar-muted">
+                  {user.dev ? "Desarrollador" : rolLabel(user.rol)}
+                </span>
+              </span>
+              <ChevronsUpDown className="h-4 w-4 shrink-0 text-sidebar-muted" />
+            </span>
           </button>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         {nuevaVersion && user.rol === "admin" ? (
           <div className="flex flex-wrap items-center justify-between gap-3 bg-accent-soft px-5 py-2.5">
             <p className="text-sm font-medium text-accent-fg">
@@ -520,6 +536,31 @@ export function AppShell() {
           >
             <LogOut className="h-4 w-4" />
             Cerrar sesión
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={confirmSalir}
+        title="Salir de la app"
+        subtitle="Se cerrará AllCo por completo"
+        onClose={() => setConfirmSalir(false)}
+      >
+        <p className="text-sm text-fg-muted">
+          Se cerrará la aplicación. Podrá volver a abrirla desde el escritorio.
+        </p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Button variant="secondary" onClick={() => setConfirmSalir(false)}>
+            Cancelar
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              void exit(0);
+            }}
+          >
+            <Power className="h-4 w-4" />
+            Salir
           </Button>
         </div>
       </Modal>

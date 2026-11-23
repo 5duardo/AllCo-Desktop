@@ -143,7 +143,7 @@ pub fn guardar_producto(state: State<AppState>, data: ProductoIn) -> Result<i64,
         conn.execute(
             "UPDATE productos SET sku=?1, codigo_barras=?2, nombre=?3, marca=?4, medida=?5,
              modelo=?6, dot=?7, proveedor_id=?8, costo=?9, precio_venta=?10, stock_minimo=?11,
-             sucursal_id=?12, activo=?13, updated_at=?14 WHERE id=?15",
+             sucursal_id=?12, activo=?13, imagen=?14, updated_at=?15 WHERE id=?16",
             params![
                 data.sku.trim(),
                 data.codigo_barras.trim(),
@@ -158,6 +158,7 @@ pub fn guardar_producto(state: State<AppState>, data: ProductoIn) -> Result<i64,
                 data.stock_minimo,
                 data.sucursal_id,
                 if data.activo { 1 } else { 0 },
+                data.imagen,
                 ts,
                 id
             ],
@@ -168,8 +169,8 @@ pub fn guardar_producto(state: State<AppState>, data: ProductoIn) -> Result<i64,
         conn.execute(
             "INSERT INTO productos
              (sku, codigo_barras, nombre, marca, medida, modelo, dot, proveedor_id,
-              costo, precio_venta, stock, stock_minimo, sucursal_id, activo, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?15)",
+              costo, precio_venta, stock, stock_minimo, sucursal_id, activo, imagen, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?16)",
             params![
                 data.sku.trim(),
                 data.codigo_barras.trim(),
@@ -185,6 +186,7 @@ pub fn guardar_producto(state: State<AppState>, data: ProductoIn) -> Result<i64,
                 data.stock_minimo,
                 data.sucursal_id,
                 if data.activo { 1 } else { 0 },
+                data.imagen,
                 ts
             ],
         )

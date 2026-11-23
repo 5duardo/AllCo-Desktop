@@ -61,6 +61,7 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
             stock_minimo INTEGER NOT NULL DEFAULT 2,
             sucursal_id INTEGER REFERENCES sucursales(id),
             activo INTEGER NOT NULL DEFAULT 1,
+            imagen TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
@@ -193,6 +194,27 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| e.to_string())?;
+    }
+
+    // Agrega la imagen del producto a bases de datos existentes.
+    let tiene_imagen = {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(productos)")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        let mut encontrado = false;
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let nombre: String = row.get(1).map_err(|e| e.to_string())?;
+            if nombre == "imagen" {
+                encontrado = true;
+                break;
+            }
+        }
+        encontrado
+    };
+    if !tiene_imagen {
+        conn.execute("ALTER TABLE productos ADD COLUMN imagen TEXT", [])
+            .map_err(|e| e.to_string())?;
     }
 
     // Renombra los valores por defecto antiguos sin tocar nombres personalizados.
@@ -503,13 +525,14 @@ pub fn map_producto(r: &rusqlite::Row, show_cost: bool) -> rusqlite::Result<Prod
         sucursal_id: r.get(14)?,
         sucursal_nombre: r.get(15)?,
         activo: r.get::<_, i64>(16)? != 0,
+        imagen: r.get(17)?,
     })
 }
 
 pub const PRODUCTO_SELECT: &str = "
     SELECT p.id, p.sku, p.codigo_barras, p.nombre, p.marca, p.medida, p.modelo, p.dot,
            p.proveedor_id, pr.nombre, p.costo, p.precio_venta, p.stock, p.stock_minimo,
-           p.sucursal_id, s.nombre, p.activo
+           p.sucursal_id, s.nombre, p.activo, p.imagen
     FROM productos p
     LEFT JOIN proveedores pr ON pr.id = p.proveedor_id
     LEFT JOIN sucursales s ON s.id = p.sucursal_id

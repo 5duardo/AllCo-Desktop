@@ -3,11 +3,13 @@ import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { Download, Palette, Printer, RefreshCw, Save, Settings, Store, Trash2, Upload } from "lucide-react";
+import { Download, AppWindow, Palette, Printer, RefreshCw, Save, Settings, Store, Trash2, Upload } from "lucide-react";
 import { api } from "@/lib/api";
+import { guardarMinimizarAlCerrar, leerMinimizarAlCerrar } from "@/lib/window";
+import { useToast } from "@/context/ToastContext";
 import type { ConfigApp } from "@/lib/types";
 import { BrandLogo } from "@/components/BrandLogo";
-import { AccentPicker, ThemeModePicker } from "@/components/ThemeControls";
+import { AccentPicker, FontPicker, ThemeModePicker } from "@/components/ThemeControls";
 import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
@@ -15,9 +17,8 @@ import { Badge, Card } from "@/components/ui/card";
 import { Input, Label, Textarea } from "@/components/ui/input";
 
 export function ConfigPage() {
+  const toast = useToast();
   const [cfg, setCfg] = useState<ConfigApp | null>(null);
-  const [msg, setMsg] = useState("");
-  const [error, setError] = useState("");
 
   const [version, setVersion] = useState("");
   const [checking, setChecking] = useState(false);
@@ -26,9 +27,13 @@ export function ConfigPage() {
   const [update, setUpdate] = useState<Update | null>(null);
   const [updateMsg, setUpdateMsg] = useState("");
   const [updateError, setUpdateError] = useState("");
+  const [minimizarAlCerrar, setMinimizarAlCerrar] = useState(leerMinimizarAlCerrar);
 
   useEffect(() => {
-    api.obtenerConfig().then(setCfg).catch((e) => setError(String(e)));
+    api
+      .obtenerConfig()
+      .then(setCfg)
+      .catch((e) => toast.error(`No se pudo cargar la configuración: ${e}`));
     getVersion()
       .then(setVersion)
       .catch(() => setVersion("0.1.0"));
@@ -131,19 +136,19 @@ export function ConfigPage() {
     e.target.value = "";
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      setError("El logo debe ser una imagen PNG, JPG, WebP o SVG.");
+      toast.error("El logo debe ser una imagen PNG, JPG, WebP o SVG.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setError("El logo no debe pesar más de 5 MB.");
+      toast.error("El logo no debe pesar más de 5 MB.");
       return;
     }
     try {
       const dataUrl = await leerLogo(file);
       setCfg((c) => (c ? { ...c, negocio_logo: dataUrl } : c));
-      setError("");
+      toast.ok("Logo actualizado. Guarde los cambios para aplicarlo.");
     } catch {
-      setError("No se pudo leer la imagen del logo.");
+      toast.error("No se pudo leer la imagen del logo.");
     }
   }
 
@@ -153,10 +158,9 @@ export function ConfigPage() {
     try {
       await api.guardarConfig(cfg);
       window.dispatchEvent(new Event("allco-brand"));
-      setMsg("Configuración guardada.");
-      setError("");
+      toast.ok("Configuración guardada.");
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
@@ -217,13 +221,11 @@ export function ConfigPage() {
     <div className="page">
       <PageHero
         title="Configuración"
-        subtitle="Marca del negocio, apariencia y actualizaciones"
-        description="Ajusta el logo y nombre del negocio, el tema visual de la app y la búsqueda de actualizaciones."
+        subtitle="Marca del negocio, apariencia, ventana y actualizaciones"
+        description="Ajusta el logo y nombre del negocio, el tema visual, el comportamiento de la ventana y la búsqueda de actualizaciones."
         icon={Settings}
         badge="Ajustes"
       />
-      {error ? <Alert>{error}</Alert> : null}
-      {msg ? <Alert tone="ok">{msg}</Alert> : null}
 
       <div className="grid items-stretch gap-5 xl:grid-cols-2">
         {cfg ? (
@@ -365,6 +367,14 @@ export function ConfigPage() {
             </p>
           </div>
 
+          <div className="mt-6">
+            <Label>Tipografía</Label>
+            <FontPicker />
+            <p className="mt-2 text-xs text-fg-muted">
+              Cambia la fuente de toda la aplicación.
+            </p>
+          </div>
+
           <div className="mt-auto pt-6">
             <p className="section-title mb-2">Vista previa</p>
             <div className="rounded-xl bg-bg p-4">
@@ -383,6 +393,42 @@ export function ConfigPage() {
           </div>
         </Card>
       </div>
+
+      <Card className="mt-5 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="icon-chip">
+              <AppWindow className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="card-title">Ventana</h2>
+              <p className="mt-1 text-sm text-fg-muted">
+                Qué hace la app al pulsar el botón de cerrar.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <label className="mt-5 flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border bg-surface-2 px-4 py-3">
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-fg">
+              Minimizar al pulsar la X
+            </span>
+            <span className="mt-0.5 block text-xs text-fg-muted">
+              La app se minimiza en la barra de tareas en vez de cerrarse. Para
+              salir por completo, use «Salir de la app» en el menú del perfil.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={minimizarAlCerrar}
+            onChange={(e) => {
+              setMinimizarAlCerrar(e.target.checked);
+              guardarMinimizarAlCerrar(e.target.checked);
+            }}
+          />
+        </label>
+      </Card>
 
       <Card className="mt-5 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">

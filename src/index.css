@@ -138,6 +138,36 @@
   --accent-hover: #be123c;
   --on-accent: #ffffff;
 }
+[data-accent="turquesa"] {
+  --accent: #0d9488;
+  --accent-hover: #0f766e;
+  --on-accent: #ffffff;
+}
+[data-accent="naranja"] {
+  --accent: #ea580c;
+  --accent-hover: #c2410c;
+  --on-accent: #ffffff;
+}
+[data-accent="rojo"] {
+  --accent: #dc2626;
+  --accent-hover: #b91c1c;
+  --on-accent: #ffffff;
+}
+[data-accent="indigo"] {
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --on-accent: #ffffff;
+}
+[data-accent="cian"] {
+  --accent: #0891b2;
+  --accent-hover: #0e7490;
+  --on-accent: #ffffff;
+}
+[data-accent="lima"] {
+  --accent: #65a30d;
+  --accent-hover: #4d7c0f;
+  --on-accent: #ffffff;
+}
 
 [data-mode="dark"][data-accent="amber"] {
   --accent: #fbbf24;
@@ -160,10 +190,63 @@
   --accent: #f43f5e;
   --accent-hover: #fb7185;
 }
+[data-mode="dark"][data-accent="turquesa"] {
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --on-accent: #042f2e;
+}
+[data-mode="dark"][data-accent="naranja"] {
+  --accent: #fb923c;
+  --accent-hover: #fdba74;
+  --on-accent: #431407;
+}
+[data-mode="dark"][data-accent="rojo"] {
+  --accent: #f87171;
+  --accent-hover: #fca5a5;
+  --on-accent: #450a0a;
+}
+[data-mode="dark"][data-accent="indigo"] {
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --on-accent: #1e1b4b;
+}
+[data-mode="dark"][data-accent="cian"] {
+  --accent: #22d3ee;
+  --accent-hover: #67e8f9;
+  --on-accent: #083344;
+}
+[data-mode="dark"][data-accent="lima"] {
+  --accent: #a3e635;
+  --accent-hover: #bef264;
+  --on-accent: #1a2e05;
+}
 [data-mode="dark"][data-accent="neutro"] {
   --accent: #f3f4f6;
   --accent-hover: #e5e7eb;
   --on-accent: #0b1220;
+}
+
+/* ---------- Tipografías de la app ---------- */
+:root {
+  --font-sans: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html[data-font="dm-sans"] {
+  --font-sans: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html[data-font="inter"] {
+  --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html[data-font="manrope"] {
+  --font-sans: "Manrope Variable", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html[data-font="jakarta"] {
+  --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html[data-font="montserrat"] {
+  --font-sans: "Montserrat Variable", "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html[data-font="sistema"] {
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* Colores derivados: se recalculan solos al cambiar modo o acento */
@@ -285,7 +368,7 @@ input[type="checkbox"]:disabled {
 /* ---------- Patrones compartidos ---------- */
 @layer components {
   .page {
-    @apply mx-auto w-full max-w-[1500px] p-5 md:p-7;
+    @apply mx-auto w-full min-w-0 max-w-[1500px] p-5 md:p-7;
   }
 
   .page-title {
@@ -334,6 +417,13 @@ input[type="checkbox"]:disabled {
   .icon-chip {
     @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg;
   }
+
+  .sidebar-link {
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease,
+      padding 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
 }
 
 /* Tablas de datos uniformes */
@@ -351,11 +441,22 @@ input[type="checkbox"]:disabled {
   text-transform: uppercase;
   text-align: left;
   padding: 0.7rem 1rem;
-  white-space: nowrap;
 }
 .table tbody td {
   padding: 0.65rem 1rem;
   vertical-align: middle;
+  overflow-wrap: break-word;
+}
+
+/* Con la ventana angosta las tablas se compactan en vez de desbordar. */
+@media (max-width: 1280px) {
+  .table thead th {
+    padding: 0.6rem 0.65rem;
+    letter-spacing: 0.04em;
+  }
+  .table tbody td {
+    padding: 0.55rem 0.65rem;
+  }
 }
 .table tbody tr {
   background: var(--surface);
@@ -399,6 +500,45 @@ input[type="checkbox"]:disabled {
   50% {
     opacity: 0.45;
   }
+}
+@keyframes allco-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes allco-toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+}
+@keyframes allco-toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+.anim-toast {
+  animation: allco-toast-in 0.24s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.anim-toast-out {
+  animation: allco-toast-out 0.2s ease-in forwards;
+}
+.anim-toast-progress {
+  animation-name: allco-toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
 }
 .anim-fade {
   animation: allco-fade-in 0.16s ease-out;

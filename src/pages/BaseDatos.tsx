@@ -8,6 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 import { bytes, fechaHora } from "@/lib/format";
 import type { StatusSistema } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
@@ -24,9 +25,9 @@ function estadoRespaldo(s: string) {
 }
 
 export function BaseDatosPage() {
+  const toast = useToast();
   const [data, setData] = useState<StatusSistema | null>(null);
   const [error, setError] = useState("");
-  const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
@@ -42,14 +43,12 @@ export function BaseDatosPage() {
 
   async function backup() {
     setBusy(true);
-    setMsg("");
-    setError("");
     try {
       const path = await api.respaldoLocal();
-      setMsg(`Copia de seguridad guardada: ${path}`);
+      toast.ok(`Copia de seguridad guardada: ${path}`);
       await load();
     } catch (e) {
-      setError(String(e));
+      toast.error(String(e));
     } finally {
       setBusy(false);
     }
@@ -58,16 +57,14 @@ export function BaseDatosPage() {
   async function eliminar() {
     if (confirmText !== "ELIMINAR") return;
     setDeleting(true);
-    setError("");
-    setMsg("");
     try {
       const path = await api.eliminarDatos();
-      setMsg(`Datos eliminados. Copia de seguridad creada en: ${path}`);
+      toast.ok(`Datos eliminados. Copia de seguridad creada en: ${path}`);
       setConfirmOpen(false);
       setConfirmText("");
       await load();
     } catch (e) {
-      setError(String(e));
+      toast.error(String(e));
     } finally {
       setDeleting(false);
     }
@@ -91,8 +88,6 @@ export function BaseDatosPage() {
         icon={Database}
         badge="Solo administrador"
       />
-      {error ? <Alert>{error}</Alert> : null}
-      {msg ? <Alert tone="ok">{msg}</Alert> : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat
@@ -130,14 +125,14 @@ export function BaseDatosPage() {
           </Button>
           <Button
             variant="secondary"
-            onClick={() => api.abrirCarpetaDatos().catch((e) => setError(String(e)))}
+            onClick={() => api.abrirCarpetaDatos().catch((e) => toast.error(String(e)))}
           >
             <FolderOpen className="h-4 w-4" />
             Carpeta de datos
           </Button>
           <Button
             variant="secondary"
-            onClick={() => api.abrirCarpetaRespaldos().catch((e) => setError(String(e)))}
+            onClick={() => api.abrirCarpetaRespaldos().catch((e) => toast.error(String(e)))}
           >
             <HardDrive className="h-4 w-4" />
             Respaldos

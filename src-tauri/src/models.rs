@@ -29,6 +29,7 @@ pub struct Producto {
     pub sucursal_id: Option<i64>,
     pub sucursal_nombre: Option<String>,
     pub activo: bool,
+    pub imagen: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,6 +49,8 @@ pub struct ProductoIn {
     pub stock_minimo: i64,
     pub sucursal_id: Option<i64>,
     pub activo: bool,
+    #[serde(default)]
+    pub imagen: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

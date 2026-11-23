@@ -62,6 +62,7 @@ export type Producto = {
   sucursal_id: number | null;
   sucursal_nombre: string | null;
   activo: boolean;
+  imagen: string | null;
 };
 
 export type Servicio = {

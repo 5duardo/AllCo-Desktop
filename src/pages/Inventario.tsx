@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
 import {
   Archive,
   ArchiveRestore,
   ArrowDownUp,
   History,
+  ImagePlus,
   LayoutGrid,
   List,
   Package,
@@ -13,6 +14,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
+import { archivoAImagen } from "@/lib/image";
 import { fechaHora, lempiras } from "@/lib/format";
 import type { CatalogoSimple, Movimiento, Producto } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
@@ -39,6 +42,7 @@ const emptyForm = {
   stock_minimo: 2,
   sucursal_id: 1 as number | null,
   activo: true,
+  imagen: null as string | null,
 };
 
 const VISTA_KEY = "allco-inventario-vista";
@@ -47,6 +51,31 @@ type Estado = "activos" | "archivados" | "todos";
 type Confirmacion = { tipo: "archivar" | "restaurar" | "eliminar"; p: Producto };
 
 const PARECE_CODIGO = /^[0-9A-Za-z-]{4,}$/;
+
+function ImagenProducto({
+  imagen,
+  nombre,
+  className,
+}: {
+  imagen: string | null;
+  nombre: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-2 text-fg-faint",
+        className,
+      )}
+    >
+      {imagen ? (
+        <img src={imagen} alt={nombre} className="h-full w-full object-cover" />
+      ) : (
+        <Package className="h-5 w-5" />
+      )}
+    </span>
+  );
+}
 
 export function InventarioPage() {
   const { user } = useAuth();
@@ -79,8 +108,7 @@ export function InventarioPage() {
   const [kardexRows, setKardexRows] = useState<Movimiento[]>([]);
   const [confirm, setConfirm] = useState<Confirmacion | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [aviso, setAviso] = useState("");
+  const toast = useToast();
   const [codigoNoEncontrado, setCodigoNoEncontrado] = useState<string | null>(null);
   const barcodeRef = useRef<HTMLInputElement>(null);
   const nombreRef = useRef<HTMLInputElement>(null);
@@ -103,7 +131,7 @@ export function InventarioPage() {
         setProveedores(pr);
         setSucursales(su);
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => toast.error(String(e)));
   }, []);
 
   // Filtra mientras se escribe; Enter (o el escáner) busca de inmediato.
@@ -118,7 +146,7 @@ export function InventarioPage() {
   // Carga el historial al entrar a la vista de movimientos o cambiar las fechas.
   useEffect(() => {
     if (vista !== "movimientos") return;
-    cargarMovimientos().catch((e) => setError(String(e)));
+    cargarMovimientos().catch((e) => toast.error(String(e)));
   }, [vista, desde, hasta]);
 
   // Enfoca el campo correcto al abrir el modal para que el lector de
@@ -135,17 +163,14 @@ export function InventarioPage() {
 
   async function buscar(query: string, escaneo = false) {
     try {
-      setError("");
       if (escaneo && PARECE_CODIGO.test(query)) {
         void api.registrarEscaneo(query).catch(() => {});
       }
       const encontrados = await api.listarProductos(query, estado);
       setRows(encontrados);
-      setAviso(
-        escaneo && encontrados.length === 1 && encontrados[0].codigo_barras === query
-          ? `Código ${query} encontrado: ${encontrados[0].nombre}`
-          : "",
-      );
+      if (escaneo && encontrados.length === 1 && encontrados[0].codigo_barras === query) {
+        toast.ok(`Código ${query} encontrado: ${encontrados[0].nombre}`);
+      }
       setCodigoNoEncontrado(
         escaneo &&
           encontrados.length === 0 &&
@@ -155,7 +180,7 @@ export function InventarioPage() {
           : null,
       );
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
@@ -203,9 +228,31 @@ export function InventarioPage() {
         stock_minimo: p.stock_minimo,
         sucursal_id: p.sucursal_id,
         activo: p.activo,
+        imagen: p.imagen ?? null,
       });
     }
     setOpen(true);
+  }
+
+  async function subirImagen(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("La imagen debe ser un archivo PNG, JPG, WebP o GIF.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("La imagen no debe pesar más de 5 MB.");
+      return;
+    }
+    try {
+      const data = await archivoAImagen(file);
+      setForm((f) => ({ ...f, imagen: data }));
+      toast.ok("Imagen cargada. Guarde el producto para aplicarla.");
+    } catch {
+      toast.error("No se pudo procesar la imagen.");
+    }
   }
 
   function onCodigoKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -227,8 +274,8 @@ export function InventarioPage() {
       await api.guardarProducto(form);
       setCodigoNoEncontrado(null);
       await load();
+      toast.ok(`"${form.nombre}" guardado.`);
       if (otro) {
-        setAviso(`"${form.nombre}" guardado. Escanee el siguiente producto.`);
         setForm({
           ...emptyForm,
           marca: form.marca,
@@ -252,7 +299,7 @@ export function InventarioPage() {
     if (!mov) return;
     try {
       await api.movimientoInventario(mov.id, movTipo, movCant, movMotivo);
-      setAviso(
+      toast.ok(
         `${movTipo === "ajuste" ? "Ajuste" : movTipo === "entrada" ? "Entrada" : "Salida"} de ${movCant} · ${mov.nombre}`,
       );
       setMovOpen(false);
@@ -260,22 +307,21 @@ export function InventarioPage() {
       await load();
       if (vista === "movimientos") await cargarMovimientos();
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
   async function ejecutarConfirmacion() {
     if (!confirm) return;
     setConfirmBusy(true);
-    setError("");
     try {
       const { tipo, p } = confirm;
       if (tipo === "archivar") await api.archivarProducto(p.id);
       if (tipo === "restaurar") await api.restaurarProducto(p.id);
       if (tipo === "eliminar") await api.eliminarProducto(p.id);
-      setAviso(
+      toast.ok(
         tipo === "archivar"
-          ? `"${p.nombre}" archivado. Ya no aparece en caja ni en el inventario activo.`
+          ? `"${p.nombre}" archivado.`
           : tipo === "restaurar"
             ? `"${p.nombre}" restaurado.`
             : `"${p.nombre}" eliminado definitivamente.`,
@@ -283,7 +329,7 @@ export function InventarioPage() {
       setConfirm(null);
       await load();
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
       setConfirm(null);
     } finally {
       setConfirmBusy(false);
@@ -295,7 +341,7 @@ export function InventarioPage() {
       setKardexRows(await api.kardex(p?.id ?? null));
       setKardexOpen(true);
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
@@ -323,7 +369,7 @@ export function InventarioPage() {
       setMovCant(1);
       setMovMotivo("");
     } catch (err) {
-      setError(String(err));
+      toast.error(String(err));
     }
   }
 
@@ -395,34 +441,36 @@ export function InventarioPage() {
       return <p className="empty-state">Sin movimientos registrados.</p>;
     }
     return (
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Producto</th>
-            <th>Tipo</th>
-            <th className="num">Cant.</th>
-            <th>Usuario</th>
-            <th>Motivo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lista.map((m) => (
-            <tr key={m.id}>
-              <td className="whitespace-nowrap text-fg-muted">{fechaHora(m.fecha)}</td>
-              <td className="font-medium">{m.producto_nombre}</td>
-              <td>
-                <Badge tone={m.tipo === "entrada" ? "ok" : m.tipo === "salida" ? "danger" : "accent"}>
-                  {m.tipo}
-                </Badge>
-              </td>
-              <td className="num font-semibold">{m.cantidad}</td>
-              <td>{m.usuario_nombre}</td>
-              <td className="text-fg-muted">{m.motivo}</td>
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Producto</th>
+              <th>Tipo</th>
+              <th className="num">Cant.</th>
+              <th>Usuario</th>
+              <th>Motivo</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {lista.map((m) => (
+              <tr key={m.id}>
+                <td className="whitespace-nowrap text-fg-muted">{fechaHora(m.fecha)}</td>
+                <td className="font-medium">{m.producto_nombre}</td>
+                <td>
+                  <Badge tone={m.tipo === "entrada" ? "ok" : m.tipo === "salida" ? "danger" : "accent"}>
+                    {m.tipo}
+                  </Badge>
+                </td>
+                <td className="num font-semibold">{m.cantidad}</td>
+                <td>{m.usuario_nombre}</td>
+                <td className="text-fg-muted">{m.motivo}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   }
 
@@ -449,8 +497,6 @@ export function InventarioPage() {
           Nuevo producto
         </Button>
       </div>
-      {error ? <Alert>{error}</Alert> : null}
-      {aviso ? <Alert tone="ok">{aviso}</Alert> : null}
 
       <Card className="mb-4 p-3">
         <form onSubmit={search} className="flex flex-wrap items-center gap-2">
@@ -588,10 +634,19 @@ export function InventarioPage() {
               {rows.map((p) => (
                 <tr key={p.id} className={p.activo ? undefined : "opacity-60"}>
                   <td>
-                    <p className="font-medium">{p.nombre}</p>
-                    <p className="text-xs text-fg-muted">
-                      {p.marca} {p.modelo}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <ImagenProducto
+                        imagen={p.imagen}
+                        nombre={p.nombre}
+                        className="h-10 w-10"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium">{p.nombre}</p>
+                        <p className="text-xs text-fg-muted">
+                          {p.marca} {p.modelo}
+                        </p>
+                      </div>
+                    </div>
                   </td>
                   <td className="font-mono text-xs text-fg-muted">{p.codigo_barras}</td>
                   <td>{p.medida}</td>
@@ -627,9 +682,11 @@ export function InventarioPage() {
           {rows.map((p) => (
             <Card key={p.id} className={cn("flex h-full flex-col p-4", !p.activo && "opacity-70")}>
               <div className="flex items-start gap-3">
-                <span className="icon-chip">
-                  <Package className="h-5 w-5" />
-                </span>
+                <ImagenProducto
+                  imagen={p.imagen}
+                  nombre={p.nombre}
+                  className="h-12 w-12 rounded-xl"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{p.nombre}</p>
                   <p className="truncate text-xs text-fg-muted">
@@ -722,6 +779,54 @@ export function InventarioPage() {
               autoFocus={!!form.id}
               required
             />
+          </div>
+          <div className="col-span-2">
+            <Label>Imagen del producto</Label>
+            <div className="mt-1 flex flex-wrap items-center gap-3 rounded-xl bg-surface-2 p-3">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-surface">
+                {form.imagen ? (
+                  <img
+                    src={form.imagen}
+                    alt={form.nombre || "Producto"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <ImagePlus className="h-7 w-7 text-fg-faint" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    htmlFor="producto-imagen"
+                    className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-fg transition-colors hover:bg-hover"
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    {form.imagen ? "Cambiar imagen" : "Subir imagen"}
+                  </label>
+                  {form.imagen ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setForm({ ...form, imagen: null })}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Quitar
+                    </Button>
+                  ) : null}
+                </div>
+                <p className="mt-2 text-xs text-fg-muted">
+                  PNG, JPG, WebP o GIF · máximo 5 MB. Se optimiza automáticamente.
+                </p>
+              </div>
+              <input
+                id="producto-imagen"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                onChange={subirImagen}
+              />
+            </div>
           </div>
           <div>
             <Label>Marca</Label>

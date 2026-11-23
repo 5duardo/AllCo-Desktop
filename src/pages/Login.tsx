@@ -12,9 +12,9 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeControls";
-import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { rolLabel } from "@/lib/format";
@@ -40,11 +40,11 @@ const FEATURES = [
 
 export function LoginPage() {
   const { login } = useAuth();
+  const toast = useToast();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [verPassword, setVerPassword] = useState(false);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export function LoginPage() {
         const def = ordenados.find((u) => u.usuario === "admin") ?? ordenados[0];
         if (def) setUsuario(def.usuario);
       })
-      .catch((e) => setError(`No se pudo cargar la lista de usuarios: ${e}`));
+      .catch((e) => toast.error(`No se pudo cargar la lista de usuarios: ${e}`));
   }, []);
 
   function abrirSitio() {
@@ -69,22 +69,21 @@ export function LoginPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!usuario) {
-      setError("Seleccione un usuario.");
+      toast.error("Seleccione un usuario.");
       return;
     }
-    setError("");
     setLoading(true);
     try {
       await login(usuario, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-sidebar p-5 sm:p-8">
+    <div className="relative flex h-full items-center justify-center overflow-y-auto bg-sidebar p-5 sm:p-8">
       <img
         src="/login-bg.webp"
         alt=""
@@ -105,9 +104,6 @@ export function LoginPage() {
                 <p className="text-lg font-bold leading-tight">AllCo</p>
               </div>
             </div>
-            <span className="rounded-full bg-[#1b1d22] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-muted">
-              Windows
-            </span>
           </div>
 
           <div className="relative my-8 max-w-sm">
@@ -197,7 +193,7 @@ export function LoginPage() {
                         value={u.usuario}
                         className={u.dev ? "italic text-fg-faint" : undefined}
                       >
-                        {u.dev ? "Soporte AllCo" : `${u.nombre} · ${rolLabel(u.rol)}`}
+                        {u.dev ? "Soporte AllCo" : rolLabel(u.rol)}
                       </option>
                     ))
                   )}
@@ -232,8 +228,6 @@ export function LoginPage() {
                 </button>
               </div>
             </div>
-
-            {error ? <Alert className="mb-5">{error}</Alert> : null}
 
             <Button
               type="submit"
