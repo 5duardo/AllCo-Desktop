@@ -1,4 +1,4 @@
-use crate::commands::auth::require_roles;
+use crate::commands::auth::{require_accion, require_roles};
 use crate::db;
 use crate::models::{Cliente, ClienteIn, VentaListado};
 use crate::AppState;
@@ -62,6 +62,11 @@ pub fn listar_clientes(
 #[tauri::command]
 pub fn guardar_cliente(state: State<AppState>, data: ClienteIn) -> Result<i64, String> {
     require_roles(&state, &["admin", "caja"])?;
+    require_accion(
+        &state,
+        "/clientes",
+        if data.id.is_some() { "editar" } else { "crear" },
+    )?;
     if data.nombre.trim().is_empty() {
         return Err("El nombre del cliente es obligatorio.".into());
     }

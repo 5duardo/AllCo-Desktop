@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { PermisosModulo } from "./permisos";
 import type {
   CatalogoSimple,
   Cliente,
@@ -6,12 +7,15 @@ import type {
   ConfigApp,
   DashboardData,
   DispositivosData,
+  Empleado,
+  EmpleadoIn,
   EstadoPruebas,
   EventoSistema,
-  Licencia,
   MarcaNegocio,
   Movimiento,
   Producto,
+  Proveedor,
+  ProveedorIn,
   ReporteVentas,
   ResumenVentas,
   Servicio,
@@ -31,12 +35,24 @@ export const api = {
   restablecerPassword: (usuario: string, claveMaestra: string, nuevaPassword: string) =>
     invoke<void>("restablecer_password", { usuario, claveMaestra, nuevaPassword }),
   estadoLogin: (usuario: string) => invoke<number>("estado_login", { usuario }),
-  obtenerLicencia: () => invoke<Licencia>("obtener_licencia"),
-  guardarLicencia: (data: Licencia) => invoke<void>("guardar_licencia", { data }),
+  misPermisos: () => invoke<string[] | null>("mis_permisos"),
+  obtenerPermisos: (usuarioId: number) =>
+    invoke<string[] | null>("obtener_permisos", { usuarioId }),
+  guardarPermisos: (usuarioId: number, modulos: PermisosModulo[]) =>
+    invoke<void>("guardar_permisos", { usuarioId, modulos }),
+  obtenerInicioAutomatico: () => invoke<boolean>("obtener_inicio_automatico"),
+  guardarInicioAutomatico: (activo: boolean) =>
+    invoke<void>("guardar_inicio_automatico", { activo }),
   registrarEscaneo: (codigo: string) =>
     invoke<void>("registrar_escaneo", { codigo }),
 
   listarProveedores: () => invoke<CatalogoSimple[]>("listar_proveedores"),
+  listarProveedoresDetalle: (soloActivos = false) =>
+    invoke<Proveedor[]>("listar_proveedores_detalle", { soloActivos }),
+  guardarProveedor: (data: ProveedorIn) => invoke<number>("guardar_proveedor", { data }),
+  listarEmpleados: (soloActivos = false) =>
+    invoke<Empleado[]>("listar_empleados", { soloActivos }),
+  guardarEmpleado: (data: EmpleadoIn) => invoke<number>("guardar_empleado", { data }),
   listarSucursales: () => invoke<CatalogoSimple[]>("listar_sucursales"),
   listarProductos: (q?: string, estado: "activos" | "archivados" | "todos" = "activos") =>
     invoke<Producto[]>("listar_productos", { q: q || null, estado }),

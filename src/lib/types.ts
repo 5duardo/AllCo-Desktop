@@ -97,6 +97,39 @@ export type ClienteIn = {
 
 export type CatalogoSimple = { id: number; nombre: string };
 
+export type Proveedor = {
+  id: number;
+  nombre: string;
+  contacto: string;
+  telefono: string;
+  activo: boolean;
+};
+
+export type ProveedorIn = {
+  id?: number;
+  nombre: string;
+  contacto: string;
+  telefono: string;
+  activo: boolean;
+};
+
+export type Empleado = {
+  id: number;
+  nombre: string;
+  puesto: string;
+  telefono: string;
+  activo: boolean;
+  created_at: string;
+};
+
+export type EmpleadoIn = {
+  id?: number;
+  nombre: string;
+  puesto: string;
+  telefono: string;
+  activo: boolean;
+};
+
 export type VentaItemIn = {
   tipo: "producto" | "servicio";
   referencia_id: number;
@@ -237,14 +270,6 @@ export type MarcaNegocio = {
   nombre: string;
   logo: string | null;
   mostrar_logo_factura: boolean;
-};
-
-export type Licencia = {
-  titular: string;
-  plan: string;
-  inicio: string;
-  expira: string;
-  notas: string;
 };
 
 export type CartLine = VentaItemIn & {

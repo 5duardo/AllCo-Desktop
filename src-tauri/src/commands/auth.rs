@@ -40,6 +40,21 @@ pub fn require_roles(state: &AppState, roles: &[&str]) -> Result<UsuarioPublico,
     Ok(user)
 }
 
+/// Valida una acción (crear/editar/eliminar) dentro de un módulo.
+/// Si el usuario no tiene permisos personalizados, basta el rol (require_roles).
+pub fn require_accion(state: &AppState, modulo: &str, accion: &str) -> Result<(), String> {
+    let user = require_user(state)?;
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let permisos = db::permisos_usuario(&conn, user.id)?;
+    if let Some(keys) = permisos {
+        let clave = format!("{modulo}:{accion}");
+        if !keys.iter().any(|k| k == modulo) && !keys.contains(&clave) {
+            return Err("No tiene permiso para esta acción.".into());
+        }
+    }
+    Ok(())
+}
+
 pub fn require_dev(state: &AppState) -> Result<UsuarioPublico, String> {
     let user = require_user(state)?;
     if !user.dev {

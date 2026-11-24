@@ -11,6 +11,7 @@ import { SplashWindow } from "./SplashWindow";
 import { FullscreenProvider } from "./context/FullscreenContext";
 import { WindowFrame } from "./components/layout/WindowFrame";
 import { ThemeProvider } from "./context/ThemeContext";
+import "sileo/styles.css";
 import "./index.css";
 
 // La ventana "splash" muestra el arranque breve; la "main" carga la app.

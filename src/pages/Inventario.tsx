@@ -79,7 +79,7 @@ function ImagenProducto({
 }
 
 export function InventarioPage() {
-  const { user } = useAuth();
+  const { user, puede } = useAuth();
   const isAdmin = user?.rol === "admin";
   const [vista, setVista] = useState<Vista>(() => {
     const v = localStorage.getItem(VISTA_KEY);
@@ -377,10 +377,12 @@ export function InventarioPage() {
   function acciones(p: Producto) {
     return (
       <>
-        <Button size="sm" variant="outline" onClick={() => edit(p)}>
-          Editar
-        </Button>
-        {p.activo ? (
+        {puede("/inventario", "editar") ? (
+          <Button size="sm" variant="outline" onClick={() => edit(p)}>
+            Editar
+          </Button>
+        ) : null}
+        {p.activo && puede("/inventario", "editar") ? (
           <Button size="sm" variant="secondary" onClick={() => abrirMovimiento(p)}>
             <ArrowDownUp className="h-3.5 w-3.5" />
             Mover
@@ -389,25 +391,27 @@ export function InventarioPage() {
         <Button size="sm" variant="ghost" onClick={() => openKardex(p)}>
           Kardex
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          title={p.activo ? "Archivar producto" : "Restaurar producto"}
-          onClick={() => setConfirm({ tipo: p.activo ? "archivar" : "restaurar", p })}
-        >
-          {p.activo ? (
-            <>
-              <Archive className="h-3.5 w-3.5" />
-              Archivar
-            </>
-          ) : (
-            <>
-              <ArchiveRestore className="h-3.5 w-3.5" />
-              Restaurar
-            </>
-          )}
-        </Button>
-        {isAdmin ? (
+        {puede("/inventario", "eliminar") ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            title={p.activo ? "Archivar producto" : "Restaurar producto"}
+            onClick={() => setConfirm({ tipo: p.activo ? "archivar" : "restaurar", p })}
+          >
+            {p.activo ? (
+              <>
+                <Archive className="h-3.5 w-3.5" />
+                Archivar
+              </>
+            ) : (
+              <>
+                <ArchiveRestore className="h-3.5 w-3.5" />
+                Restaurar
+              </>
+            )}
+          </Button>
+        ) : null}
+        {isAdmin && puede("/inventario", "eliminar") ? (
           <Button
             size="sm"
             variant="dangerSoft"
@@ -489,14 +493,18 @@ export function InventarioPage() {
         }
       />
       <div className="mb-4 flex flex-wrap justify-end gap-2">
-        <Button variant="outline" onClick={() => abrirMovimientoLibre()}>
-          <ArrowDownUp className="h-4 w-4" />
-          Nuevo movimiento
-        </Button>
-        <Button onClick={() => edit()}>
-          <Plus className="h-4 w-4" />
-          Nuevo producto
-        </Button>
+        {puede("/inventario", "editar") ? (
+          <Button variant="outline" onClick={() => abrirMovimientoLibre()}>
+            <ArrowDownUp className="h-4 w-4" />
+            Nuevo movimiento
+          </Button>
+        ) : null}
+        {puede("/inventario", "crear") ? (
+          <Button onClick={() => edit()}>
+            <Plus className="h-4 w-4" />
+            Nuevo producto
+          </Button>
+        ) : null}
       </div>
 
       <Card className="mb-4 p-3">
@@ -900,7 +908,7 @@ export function InventarioPage() {
           </div>
           <div className="col-span-2 mt-1 flex flex-wrap justify-end gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            {!form.id ? (
+            {!form.id && puede("/inventario", "crear") ? (
               <Button
                 type="submit"
                 variant="secondary"
@@ -912,9 +920,11 @@ export function InventarioPage() {
                 Guardar y agregar otro
               </Button>
             ) : null}
-            <Button type="submit" disabled={guardando}>
-              {guardando ? "Guardando…" : "Guardar producto"}
-            </Button>
+            {puede("/inventario", form.id ? "editar" : "crear") ? (
+              <Button type="submit" disabled={guardando}>
+                {guardando ? "Guardando…" : "Guardar producto"}
+              </Button>
+            ) : null}
           </div>
         </form>
       </Modal>

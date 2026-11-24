@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Clock, Pencil, Plus, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
 import { lempiras } from "@/lib/format";
 import type { Servicio } from "@/lib/types";
 import { PageHero } from "@/components/layout/PageHero";
@@ -21,6 +22,7 @@ const empty = {
 
 export function ServiciosPage() {
   const toast = useToast();
+  const { puede } = useAuth();
   const [rows, setRows] = useState<Servicio[]>([]);
   const [form, setForm] = useState(empty);
   const [open, setOpen] = useState(false);
@@ -55,15 +57,17 @@ export function ServiciosPage() {
         badge={`${rows.length} servicios`}
       />
       <div className="mb-4 flex flex-wrap justify-end gap-2">
-        <Button
-          onClick={() => {
-            setForm(empty);
-            setOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          Nuevo servicio
-        </Button>
+        {puede("/servicios", "crear") ? (
+          <Button
+            onClick={() => {
+              setForm(empty);
+              setOpen(true);
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Nuevo servicio
+          </Button>
+        ) : null}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -85,17 +89,19 @@ export function ServiciosPage() {
                   {s.duracion_min} min aprox.
                 </p>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setForm({ ...s });
-                  setOpen(true);
-                }}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Editar
-              </Button>
+              {puede("/servicios", "editar") ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setForm({ ...s });
+                    setOpen(true);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Editar
+                </Button>
+              ) : null}
             </div>
           </Card>
         ))}

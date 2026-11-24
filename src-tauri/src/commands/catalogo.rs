@@ -1,4 +1,4 @@
-use crate::commands::auth::{require_roles, require_user};
+use crate::commands::auth::{require_accion, require_roles, require_user};
 use crate::db::{self, PRODUCTO_SELECT};
 use crate::models::{
     CatalogoSimple, Movimiento, Producto, ProductoIn, Servicio, ServicioIn,
@@ -103,6 +103,11 @@ pub fn buscar_producto_codigo(
 #[tauri::command]
 pub fn guardar_producto(state: State<AppState>, data: ProductoIn) -> Result<i64, String> {
     let user = require_roles(&state, &["admin", "bodega"])?;
+    require_accion(
+        &state,
+        "/inventario",
+        if data.id.is_some() { "editar" } else { "crear" },
+    )?;
     if data.nombre.trim().is_empty() {
         return Err("El nombre es obligatorio.".into());
     }
@@ -207,6 +212,7 @@ pub fn guardar_producto(state: State<AppState>, data: ProductoIn) -> Result<i64,
 #[tauri::command]
 pub fn archivar_producto(state: State<AppState>, producto_id: i64) -> Result<(), String> {
     require_roles(&state, &["admin", "bodega"])?;
+    require_accion(&state, "/inventario", "eliminar")?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let n = conn
         .execute(
@@ -223,6 +229,7 @@ pub fn archivar_producto(state: State<AppState>, producto_id: i64) -> Result<(),
 #[tauri::command]
 pub fn restaurar_producto(state: State<AppState>, producto_id: i64) -> Result<(), String> {
     require_roles(&state, &["admin", "bodega"])?;
+    require_accion(&state, "/inventario", "eliminar")?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let codigo: String = conn
         .query_row(
@@ -258,6 +265,7 @@ pub fn restaurar_producto(state: State<AppState>, producto_id: i64) -> Result<()
 #[tauri::command]
 pub fn eliminar_producto(state: State<AppState>, producto_id: i64) -> Result<(), String> {
     require_roles(&state, &["admin"])?;
+    require_accion(&state, "/inventario", "eliminar")?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let ventas: i64 = conn
         .query_row(
@@ -302,6 +310,7 @@ pub fn movimiento_inventario(
     motivo: String,
 ) -> Result<i64, String> {
     let user = require_roles(&state, &["admin", "bodega"])?;
+    require_accion(&state, "/inventario", "editar")?;
     if cantidad < 0 {
         return Err("La cantidad no puede ser negativa.".into());
     }
@@ -417,6 +426,11 @@ pub fn listar_servicios(
 #[tauri::command]
 pub fn guardar_servicio(state: State<AppState>, data: ServicioIn) -> Result<i64, String> {
     require_roles(&state, &["admin"])?;
+    require_accion(
+        &state,
+        "/servicios",
+        if data.id.is_some() { "editar" } else { "crear" },
+    )?;
     if data.nombre.trim().is_empty() {
         return Err("El nombre del servicio es obligatorio.".into());
     }

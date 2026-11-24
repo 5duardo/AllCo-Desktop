@@ -68,6 +68,10 @@
   --sidebar-fg: #eef2f8;
   --sidebar-muted: #8b8f96;
   --sidebar-border: #1a1b1f;
+
+  --sidebar-scroll-thumb: color-mix(in srgb, var(--sidebar-muted) 28%, transparent);
+  --sidebar-scroll-thumb-hover: color-mix(in srgb, var(--sidebar-muted) 55%, transparent);
+  --sidebar-scroll-thumb-active: color-mix(in srgb, var(--sidebar-fg) 50%, transparent);
 }
 
 /* ---------- Base: tema oscuro ---------- */
@@ -365,6 +369,37 @@ input[type="checkbox"]:disabled {
   background: var(--surface-2);
 }
 
+/* Scrollbar del menú lateral: fina, sin pista y se aviva al pasar el mouse */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--sidebar-scroll-thumb) transparent;
+  overscroll-behavior: contain;
+}
+.sidebar-scroll:hover {
+  scrollbar-color: var(--sidebar-scroll-thumb-hover) transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: var(--sidebar-scroll-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--sidebar-scroll-thumb-hover);
+  background-clip: padding-box;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--sidebar-scroll-thumb-active);
+  background-clip: padding-box;
+}
+
 /* ---------- Patrones compartidos ---------- */
 @layer components {
   .page {
@@ -500,45 +535,6 @@ input[type="checkbox"]:disabled {
   50% {
     opacity: 0.45;
   }
-}
-@keyframes allco-toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(-12px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-@keyframes allco-toast-out {
-  from {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.97);
-  }
-}
-@keyframes allco-toast-progress {
-  from {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(0);
-  }
-}
-.anim-toast {
-  animation: allco-toast-in 0.24s cubic-bezier(0.2, 0.8, 0.3, 1);
-}
-.anim-toast-out {
-  animation: allco-toast-out 0.2s ease-in forwards;
-}
-.anim-toast-progress {
-  animation-name: allco-toast-progress;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
 }
 .anim-fade {
   animation: allco-fade-in 0.16s ease-out;

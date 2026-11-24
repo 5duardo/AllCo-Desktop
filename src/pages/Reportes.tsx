@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BarChart3, PackageSearch, Receipt, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { fechaHora, lempiras, pagoLabel } from "@/lib/format";
 import type { Producto, ReporteVentas } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 type Tab = "ventas" | "stock";
 
 export function ReportesPage() {
+  const { puede } = useAuth();
   const [tab, setTab] = useState<Tab>("ventas");
   const [periodo, setPeriodo] = useState("dia");
   const [desde, setDesde] = useState("");
@@ -199,7 +201,7 @@ export function ReportesPage() {
                           )}
                         </td>
                         <td>
-                          {v.estado === "completada" ? (
+                          {v.estado === "completada" && puede("/facturacion", "eliminar") ? (
                             anularId === v.id ? (
                               <div className="flex justify-end gap-1.5">
                                 <Input

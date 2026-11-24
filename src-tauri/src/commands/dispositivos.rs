@@ -1,4 +1,4 @@
-use crate::commands::auth::{require_roles, require_user};
+use crate::commands::auth::{require_accion, require_roles, require_user};
 use crate::db;
 use crate::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -409,6 +409,7 @@ pub fn guardar_impresora_ticket(
     ruta: Option<String>,
 ) -> Result<(), String> {
     require_roles(&state, &["admin", "caja"])?;
+    require_accion(&state, "/config", "editar")?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let modo = if modo.as_deref() == Some("usb") {
         "usb"

@@ -1,4 +1,4 @@
-use crate::commands::auth::{require_roles, require_user};
+use crate::commands::auth::{require_accion, require_roles, require_user};
 use crate::db;
 use crate::models::{ConfigApp, VentaIn, VentaListado, VentaResultado};
 use crate::AppState;
@@ -23,6 +23,7 @@ fn venta_listado_from_row(r: &rusqlite::Row) -> rusqlite::Result<VentaListado> {
 #[tauri::command]
 pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResultado, String> {
     let user = require_roles(&state, &["admin", "caja"])?;
+    require_accion(&state, "/pos", "crear")?;
     if data.items.is_empty() {
         return Err("Agregue al menos un ítem.".into());
     }
@@ -420,6 +421,7 @@ pub fn anular_venta(
     motivo: String,
 ) -> Result<(), String> {
     let user = require_roles(&state, &["admin"])?;
+    require_accion(&state, "/facturacion", "eliminar")?;
     if motivo.trim().len() < 3 {
         return Err("Indique el motivo de anulación.".into());
     }

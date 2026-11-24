@@ -79,6 +79,51 @@ pub struct CatalogoSimple {
     pub nombre: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Proveedor {
+    pub id: i64,
+    pub nombre: String,
+    pub contacto: String,
+    pub telefono: String,
+    pub activo: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProveedorIn {
+    pub id: Option<i64>,
+    pub nombre: String,
+    pub contacto: String,
+    pub telefono: String,
+    pub activo: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Empleado {
+    pub id: i64,
+    pub nombre: String,
+    pub puesto: String,
+    pub telefono: String,
+    pub activo: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PermisoModuloIn {
+    pub modulo: String,
+    pub crear: bool,
+    pub editar: bool,
+    pub eliminar: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EmpleadoIn {
+    pub id: Option<i64>,
+    pub nombre: String,
+    pub puesto: String,
+    pub telefono: String,
+    pub activo: bool,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct VentaItemIn {
     pub tipo: String,

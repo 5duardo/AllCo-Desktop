@@ -1,4 +1,4 @@
-use crate::commands::auth::{require_dev, require_roles, require_user};
+use crate::commands::auth::{require_accion, require_dev, require_roles, require_user};
 use crate::db;
 use crate::models::{
     AlertaSistema, ConfigApp, EventoSistema, Licencia, LoginHoy, MarcaNegocio, StatusSistema,
@@ -11,6 +11,7 @@ use std::net::TcpStream;
 use std::time::Duration;
 use sysinfo::Disks;
 use tauri::{AppHandle, State};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -32,6 +33,11 @@ pub fn listar_usuarios(state: State<AppState>) -> Result<Vec<UsuarioPublico>, St
 #[tauri::command]
 pub fn guardar_usuario(state: State<AppState>, data: UsuarioIn) -> Result<i64, String> {
     let admin = require_roles(&state, &["admin"])?;
+    require_accion(
+        &state,
+        "/config",
+        if data.id.is_some() { "editar" } else { "crear" },
+    )?;
     if data.nombre.trim().is_empty() || data.usuario.trim().is_empty() {
         return Err("Nombre y usuario son obligatorios.".into());
     }
@@ -142,8 +148,40 @@ pub fn obtener_config(state: State<AppState>) -> Result<ConfigApp, String> {
 #[tauri::command]
 pub fn guardar_config(state: State<AppState>, data: ConfigApp) -> Result<(), String> {
     require_roles(&state, &["admin"])?;
+    require_accion(&state, "/config", "editar")?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     db::save_config(&conn, &data)
+}
+
+#[tauri::command]
+pub fn obtener_inicio_automatico(state: State<AppState>) -> Result<bool, String> {
+    require_roles(&state, &["admin"])?;
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    Ok(db::config_flag(&conn, "iniciar_al_encender", true))
+}
+
+#[tauri::command]
+pub fn guardar_inicio_automatico(
+    app: AppHandle,
+    state: State<AppState>,
+    activo: bool,
+) -> Result<(), String> {
+    require_roles(&state, &["admin"])?;
+    require_accion(&state, "/config", "editar")?;
+    let manager = app.autolaunch();
+    if activo {
+        manager.enable().map_err(|e| e.to_string())?;
+    } else {
+        manager.disable().map_err(|e| e.to_string())?;
+    }
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    conn.execute(
+        "INSERT INTO configuracion (clave, valor) VALUES ('iniciar_al_encender', ?1)
+         ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+        params![if activo { "1" } else { "0" }],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -178,6 +216,7 @@ pub fn guardar_reporte_fiscal(
     contenido: String,
 ) -> Result<(), String> {
     require_roles(&state, &["admin"])?;
+    require_accion(&state, "/config", "crear")?;
     let destino = std::path::PathBuf::from(ruta);
     let es_csv = destino
         .extension()
@@ -496,6 +535,7 @@ fn disk_space(path: &std::path::Path) -> (u64, u64) {
 #[tauri::command]
 pub fn respaldo_local(app: AppHandle, state: State<AppState>) -> Result<String, String> {
     let user = require_roles(&state, &["admin"])?;
+    require_accion(&state, "/base-datos", "crear")?;
     let dest_dir = app
         .dialog()
         .file()
@@ -557,6 +597,7 @@ pub fn respaldo_local(app: AppHandle, state: State<AppState>) -> Result<String, 
 #[tauri::command]
 pub fn eliminar_datos(state: State<AppState>) -> Result<String, String> {
     let user = require_roles(&state, &["admin"])?;
+    require_accion(&state, "/base-datos", "eliminar")?;
     let mut conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
 
     let dir = state.data_dir.join("respaldos");

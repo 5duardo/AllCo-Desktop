@@ -8,6 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Manager, RunEvent};
+use tauri_plugin_autostart::ManagerExt;
 
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
@@ -29,6 +30,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
             fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
@@ -67,6 +72,21 @@ pub fn run() {
             let conn = db::open(&db_path)?;
             db::migrate_and_seed(&conn)?;
             db::log_event(&conn, "app_start", None, "Aplicación iniciada", None)?;
+            // El inicio con Windows viene activado por defecto y respeta la preferencia guardada.
+            let inicio_automatico = db::config_flag(&conn, "iniciar_al_encender", true);
+            let autolaunch = app.autolaunch();
+            match (inicio_automatico, autolaunch.is_enabled().unwrap_or(false)) {
+                (true, false) => {
+                    if let Err(e) = autolaunch.enable() {
+                        eprintln!("No se pudo activar el inicio automático: {e}");
+                    }
+                }
+                (false, true) => {
+                    let _ = autolaunch.disable();
+                }
+                _ => {}
+            }
+
             app.manage(AppState {
                 db: Mutex::new(conn),
                 db_path,
@@ -86,6 +106,9 @@ pub fn run() {
             logout,
             sesion_actual,
             usuarios_login,
+            mis_permisos,
+            obtener_permisos,
+            guardar_permisos,
             restablecer_password,
             estado_login,
             registrar_escaneo,
@@ -95,7 +118,11 @@ pub fn run() {
             imprimir_prueba,
             imprimir_factura,
             listar_proveedores,
+            listar_proveedores_detalle,
+            guardar_proveedor,
             listar_sucursales,
+            listar_empleados,
+            guardar_empleado,
             listar_productos,
             buscar_producto_codigo,
             guardar_producto,
@@ -123,6 +150,8 @@ pub fn run() {
             guardar_usuario,
             obtener_config,
             guardar_config,
+            obtener_inicio_automatico,
+            guardar_inicio_automatico,
             marca_negocio,
             obtener_licencia,
             guardar_licencia,

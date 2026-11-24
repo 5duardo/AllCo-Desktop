@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
 import { bytes, fechaHora } from "@/lib/format";
 import type { StatusSistema } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
@@ -26,6 +27,7 @@ function estadoRespaldo(s: string) {
 
 export function BaseDatosPage() {
   const toast = useToast();
+  const { puede } = useAuth();
   const [data, setData] = useState<StatusSistema | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -151,16 +153,18 @@ export function BaseDatosPage() {
           y todas las copias de seguridad.
         </p>
         <div className="mt-4 flex justify-end">
-          <Button
-            variant="danger"
-            onClick={() => {
-              setConfirmText("");
-              setConfirmOpen(true);
-            }}
-          >
-            <Trash2 className="h-4 w-4" />
-            Eliminar datos operativos
-          </Button>
+          {puede("/base-datos", "eliminar") ? (
+            <Button
+              variant="danger"
+              onClick={() => {
+                setConfirmText("");
+                setConfirmOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              Eliminar datos operativos
+            </Button>
+          ) : null}
         </div>
       </Card>
 

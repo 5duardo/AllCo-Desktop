@@ -41,6 +41,19 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
             telefono TEXT NOT NULL DEFAULT '',
             activo INTEGER NOT NULL DEFAULT 1
         );
+        CREATE TABLE IF NOT EXISTS empleados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            puesto TEXT NOT NULL DEFAULT '',
+            telefono TEXT NOT NULL DEFAULT '',
+            activo INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS usuario_permisos (
+            usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            modulo TEXT NOT NULL,
+            PRIMARY KEY (usuario_id, modulo)
+        );
         CREATE TABLE IF NOT EXISTS sucursales (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL,
@@ -268,7 +281,59 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
 
     seed(conn)?;
     ensure_dev_user(conn)?;
-    migrate_default_password(conn)
+    migrate_default_password(conn)?;
+    ensure_nuevas_claves_config(conn)
+}
+
+/// El inicio automático viene activado en instalaciones nuevas y antiguas.
+fn ensure_nuevas_claves_config(conn: &Connection) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO configuracion (clave, valor) VALUES ('iniciar_al_encender', '1')
+         ON CONFLICT(clave) DO NOTHING",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// `None` significa que el usuario no tiene permisos personalizados y usa su rol.
+pub fn permisos_usuario(conn: &Connection, usuario_id: i64) -> Result<Option<Vec<String>>, String> {
+    let mut stmt = conn
+        .prepare("SELECT modulo FROM usuario_permisos WHERE usuario_id = ?1 ORDER BY modulo")
+        .map_err(|e| e.to_string())?;
+    let modulos = stmt
+        .query_map(params![usuario_id], |r| r.get::<_, String>(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|m| m != "_")
+        .collect::<Vec<_>>();
+    let personalizado: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM usuario_permisos WHERE usuario_id = ?1",
+            params![usuario_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if personalizado > 0 {
+        Ok(Some(modulos))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn config_flag(conn: &Connection, clave: &str, por_defecto: bool) -> bool {
+    conn.query_row(
+        "SELECT valor FROM configuracion WHERE clave = ?1",
+        params![clave],
+        |r| r.get::<_, String>(0),
+    )
+    .optional()
+    .ok()
+    .flatten()
+    .map(|v| v == "1")
+    .unwrap_or(por_defecto)
 }
 
 fn ensure_dev_user(conn: &Connection) -> Result<(), String> {

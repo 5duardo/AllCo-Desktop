@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { HashRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Loader2 } from "lucide-react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -11,18 +11,18 @@ import { LoginPage } from "@/pages/Login";
 import { DashboardPage } from "@/pages/Dashboard";
 import { PosPage } from "@/pages/Pos";
 import { ClientesPage } from "@/pages/Clientes";
+import { EmpleadosPage } from "@/pages/Empleados";
 import { InventarioPage } from "@/pages/Inventario";
 import { DispositivosPage } from "@/pages/Dispositivos";
 import { ServiciosPage } from "@/pages/Servicios";
 import { ReportesPage } from "@/pages/Reportes";
-import { UsuariosPage } from "@/pages/Usuarios";
 import { ConfigPage } from "@/pages/Configuracion";
 import { StatusPage } from "@/pages/Status";
 import { BaseDatosPage } from "@/pages/BaseDatos";
 import { PruebasPage } from "@/pages/Pruebas";
+import { ProveedoresPage } from "@/pages/Proveedores";
 import { FacturacionPage } from "@/pages/Facturacion";
 import { TalonariosPage } from "@/pages/Talonarios";
-import { LicenciaPage } from "@/pages/Licencia";
 import { leerMinimizarAlCerrar } from "@/lib/window";
 import type { Rol } from "@/lib/types";
 
@@ -34,10 +34,20 @@ function GuestOnly() {
 }
 
 function Protected({ roles }: { roles?: Rol[] }) {
-  const { user, ready } = useAuth();
+  const { user, ready, permisos, tieneAcceso } = useAuth();
+  const { pathname } = useLocation();
   if (!ready) return <Splash />;
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.rol)) return <Navigate to="/" replace />;
+  // Configuración sigue siendo exclusiva de administrador.
+  if (pathname === "/config" && user.rol !== "admin") return <Navigate to="/" replace />;
+  // Con permisos personalizados, la lista marcada reemplaza al rol.
+  if (roles && permisos === null && !roles.includes(user.rol)) {
+    return <Navigate to="/" replace />;
+  }
+  const exento = pathname === "/usuarios" || pathname === "/pruebas";
+  if (permisos !== null && !exento && !tieneAcceso(pathname)) {
+    return <Navigate to="/" replace />;
+  }
   return <Outlet />;
 }
 
@@ -99,7 +109,6 @@ export default function App() {
               <Route element={<Protected />}>
                 <Route element={<AppShell />}>
                   <Route path="/" element={<DashboardPage />} />
-                  <Route path="/licencia" element={<LicenciaPage />} />
                   <Route element={<Protected roles={["admin", "caja"]} />}>
                     <Route path="/pos" element={<PosPage />} />
                     <Route path="/facturacion" element={<FacturacionPage />} />
@@ -108,12 +117,14 @@ export default function App() {
                   </Route>
                   <Route element={<Protected roles={["admin", "bodega"]} />}>
                     <Route path="/inventario" element={<InventarioPage />} />
+                    <Route path="/proveedores" element={<ProveedoresPage />} />
                   </Route>
                   <Route element={<Protected roles={["admin"]} />}>
                     <Route path="/servicios" element={<ServiciosPage />} />
                     <Route path="/reportes" element={<ReportesPage />} />
                     <Route path="/talonarios" element={<TalonariosPage />} />
-                    <Route path="/usuarios" element={<UsuariosPage />} />
+                    <Route path="/empleados" element={<EmpleadosPage />} />
+                    <Route path="/usuarios" element={<Navigate to="/config?tab=usuarios" replace />} />
                     <Route path="/config" element={<ConfigPage />} />
                     <Route path="/status" element={<StatusPage />} />
                     <Route path="/base-datos" element={<BaseDatosPage />} />

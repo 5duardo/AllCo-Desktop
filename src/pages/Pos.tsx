@@ -20,7 +20,7 @@ const METODOS = [
 ] as const;
 
 export function PosPage() {
-  const { user } = useAuth();
+  const { user, puede } = useAuth();
   const toast = useToast();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
@@ -681,17 +681,19 @@ export function PosPage() {
                 <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">
                   Cliente
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErrorCliente("");
-                    setClienteModal(true);
-                  }}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-accent-fg hover:underline"
-                >
-                  <UserPlus className="h-3.5 w-3.5" />
-                  Nuevo cliente
-                </button>
+                {puede("/clientes", "crear") ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setErrorCliente("");
+                      setClienteModal(true);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-accent-fg hover:underline"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Nuevo cliente
+                  </button>
+                ) : null}
               </div>
               <Select value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
                 <option value="">Consumidor final</option>
@@ -807,7 +809,12 @@ export function PosPage() {
               </div>
             </div>
 
-            <Button type="submit" size="xl" className="w-full" disabled={busy}>
+            <Button
+              type="submit"
+              size="xl"
+              className="w-full"
+              disabled={busy || !puede("/pos", "crear")}
+            >
               <ReceiptText className="h-5 w-5" />
               {busy ? "Facturando…" : `Facturar ${lempiras(total)}`}
             </Button>

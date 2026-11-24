@@ -35,7 +35,7 @@ const INICIO_MES = iso(new Date(new Date().getFullYear(), new Date().getMonth(),
 
 export function FacturacionPage() {
   const toast = useToast();
-  const { user } = useAuth();
+  const { user, puede } = useAuth();
   const esAdmin = user?.rol === "admin";
 
   const [desde, setDesde] = useState(INICIO_MES);
@@ -257,7 +257,7 @@ export function FacturacionPage() {
                         <Printer className="h-3.5 w-3.5" />
                         Reimprimir
                       </Button>
-                      {esAdmin && v.estado !== "anulada" ? (
+                      {esAdmin && puede("/facturacion", "eliminar") && v.estado !== "anulada" ? (
                         <Button
                           size="sm"
                           variant="ghost"

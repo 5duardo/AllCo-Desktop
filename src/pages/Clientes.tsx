@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Contact, Pencil, Plus, Receipt, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
+import { useAuth } from "@/context/AuthContext";
 import { fechaHora, lempiras, pagoLabel } from "@/lib/format";
 import type { Cliente, ClienteIn, VentaListado } from "@/lib/types";
 import { PageHero } from "@/components/layout/PageHero";
@@ -21,6 +22,7 @@ const empty: ClienteIn = {
 
 export function ClientesPage() {
   const toast = useToast();
+  const { puede } = useAuth();
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Cliente[]>([]);
   const [open, setOpen] = useState(false);
@@ -97,12 +99,14 @@ export function ClientesPage() {
         icon={Contact}
         badge={`${rows.length} clientes`}
       />
-      <div className="mb-4 flex flex-wrap justify-end gap-2">
-        <Button onClick={() => edit()}>
-          <Plus className="h-4 w-4" />
-          Nuevo cliente
-        </Button>
-      </div>
+      {puede("/clientes", "crear") ? (
+        <div className="mb-4 flex flex-wrap justify-end gap-2">
+          <Button onClick={() => edit()}>
+            <Plus className="h-4 w-4" />
+            Nuevo cliente
+          </Button>
+        </div>
+      ) : null}
 
       <Card className="mb-4 p-3">
         <form onSubmit={search} className="flex flex-wrap items-center gap-2">
@@ -152,10 +156,12 @@ export function ClientesPage() {
                       <Receipt className="h-3.5 w-3.5" />
                       Facturas
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => edit(c)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                      Editar
-                    </Button>
+                    {puede("/clientes", "editar") ? (
+                      <Button size="sm" variant="outline" onClick={() => edit(c)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                        Editar
+                      </Button>
+                    ) : null}
                   </div>
                 </td>
               </tr>

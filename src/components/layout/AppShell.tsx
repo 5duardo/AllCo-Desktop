@@ -1,22 +1,16 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
-  ArrowLeftRight,
   ArrowUpRight,
   ChevronsUpDown,
-  KeyRound,
   LifeBuoy,
   LogOut,
   Mail,
   MessageCircle,
-  Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  Power,
-  Sun,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { exit } from "@tauri-apps/plugin-process";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -29,10 +23,10 @@ import {
   DocumentTextIcon,
   HomeIcon,
   IdentificationIcon,
-  KeyIcon,
   PrinterIcon,
   ShoppingCartIcon,
   SignalIcon,
+  TruckIcon,
   UsersIcon,
   WrenchIcon,
 } from "@heroicons/react/24/outline";
@@ -46,10 +40,10 @@ import {
   DocumentTextIcon as DocumentTextSolidIcon,
   HomeIcon as HomeSolidIcon,
   IdentificationIcon as IdentificationSolidIcon,
-  KeyIcon as KeySolidIcon,
   PrinterIcon as PrinterSolidIcon,
   ShoppingCartIcon as ShoppingCartSolidIcon,
   SignalIcon as SignalSolidIcon,
+  TruckIcon as TruckSolidIcon,
   UsersIcon as UsersSolidIcon,
   WrenchIcon as WrenchSolidIcon,
 } from "@heroicons/react/24/solid";
@@ -64,12 +58,12 @@ import type { MarcaNegocio, Rol } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type NavIcon = ComponentType<{ className?: string }>;
-type NavGroup = "operacion" | "administracion" | "sistema" | "desarrollo";
+type NavGroup = "operacion" | "inventario" | "administracion" | "desarrollo";
 
 const GRUPOS: { id: NavGroup; label: string }[] = [
   { id: "operacion", label: "Operación" },
+  { id: "inventario", label: "Inventario y servicios" },
   { id: "administracion", label: "Administración" },
-  { id: "sistema", label: "Sistema" },
   { id: "desarrollo", label: "Desarrollo" },
 ];
 
@@ -86,16 +80,16 @@ const NAV: {
   { to: "/pos", label: "Punto de venta", icon: ShoppingCartIcon, iconSolid: ShoppingCartSolidIcon, group: "operacion", roles: ["admin", "caja"] },
   { to: "/facturacion", label: "Facturación", icon: DocumentTextIcon, iconSolid: DocumentTextSolidIcon, group: "operacion", roles: ["admin", "caja"] },
   { to: "/clientes", label: "Clientes", icon: IdentificationIcon, iconSolid: IdentificationSolidIcon, group: "operacion", roles: ["admin", "caja"] },
-  { to: "/dispositivos", label: "Dispositivos", icon: PrinterIcon, iconSolid: PrinterSolidIcon, group: "operacion", roles: ["admin", "caja"] },
-  { to: "/inventario", label: "Inventario", icon: CubeIcon, iconSolid: CubeSolidIcon, group: "operacion", roles: ["admin", "bodega"] },
-  { to: "/servicios", label: "Servicios", icon: WrenchIcon, iconSolid: WrenchSolidIcon, group: "operacion", roles: ["admin"] },
+  { to: "/talonarios", label: "Talonarios", icon: CalculatorIcon, iconSolid: CalculatorSolidIcon, group: "operacion", roles: ["admin"] },
+  { to: "/inventario", label: "Inventario", icon: CubeIcon, iconSolid: CubeSolidIcon, group: "inventario", roles: ["admin", "bodega"] },
+  { to: "/proveedores", label: "Proveedores", icon: TruckIcon, iconSolid: TruckSolidIcon, group: "inventario", roles: ["admin", "bodega"] },
+  { to: "/servicios", label: "Servicios", icon: WrenchIcon, iconSolid: WrenchSolidIcon, group: "inventario", roles: ["admin"] },
+  { to: "/dispositivos", label: "Dispositivos", icon: PrinterIcon, iconSolid: PrinterSolidIcon, group: "inventario", roles: ["admin", "caja"] },
+  { to: "/empleados", label: "Empleados", icon: UsersIcon, iconSolid: UsersSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/reportes", label: "Reportes", icon: ChartBarIcon, iconSolid: ChartBarSolidIcon, group: "administracion", roles: ["admin"] },
-  { to: "/talonarios", label: "Talonarios", icon: CalculatorIcon, iconSolid: CalculatorSolidIcon, group: "administracion", roles: ["admin"] },
-  { to: "/usuarios", label: "Usuarios", icon: UsersIcon, iconSolid: UsersSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/status", label: "Registros", icon: SignalIcon, iconSolid: SignalSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/base-datos", label: "Base de datos", icon: CircleStackIcon, iconSolid: CircleStackSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/config", label: "Configuración", icon: Cog6ToothIcon, iconSolid: Cog6ToothSolidIcon, group: "administracion", roles: ["admin"] },
-  { to: "/licencia", label: "Licencia", icon: KeyIcon, iconSolid: KeySolidIcon, group: "sistema", roles: ["admin", "caja", "bodega"] },
   { to: "/pruebas", label: "Pruebas", icon: BeakerIcon, iconSolid: BeakerSolidIcon, group: "desarrollo", roles: ["admin"], devOnly: true },
 ];
 
@@ -128,8 +122,8 @@ function ProfileMenuItem({
 }
 
 export function AppShell() {
-  const { user, logout } = useAuth();
-  const { accent, resolvedMode, toggleMode } = useTheme();
+  const { user, logout, permisos, tieneAcceso } = useAuth();
+  const { accent, resolvedMode } = useTheme();
   const { pantallaCompleta } = useFullscreen();
   const { nuevaVersion } = useUpdates();
   const navigate = useNavigate();
@@ -139,7 +133,6 @@ export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [soporteOpen, setSoporteOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [confirmSalir, setConfirmSalir] = useState(false);
   const [marca, setMarca] = useState<MarcaNegocio | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -183,15 +176,11 @@ export function AppShell() {
     navigate("/login");
   }
 
-  // Cierra la sesión y vuelve al login para entrar con otra cuenta.
-  async function onSwitchUser() {
-    await logout();
-    navigate("/login");
-  }
-
-  const items = NAV.filter(
-    (n) => n.roles.includes(user.rol) && (!n.devOnly || user.dev),
-  );
+  const items = NAV.filter((n) => {
+    if (n.devOnly && !user.dev) return false;
+    if (permisos !== null) return tieneAcceso(n.to);
+    return n.roles.includes(user.rol);
+  });
   const nombreNegocio = marca?.nombre?.trim() || "AllCo";
   // El acento neutro es negro en tema claro: sobre el sidebar oscuro
   // necesita un fondo translúcido para que el ítem activo se distinga.
@@ -257,7 +246,7 @@ export function AppShell() {
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3" aria-label="Menú principal">
+        <nav className="sidebar-scroll flex-1 overflow-y-auto p-3" aria-label="Menú principal">
           {GRUPOS.map((grupo, indice) => {
             const visibles = items.filter((item) => item.group === grupo.id);
             if (visibles.length === 0) return null;
@@ -371,47 +360,12 @@ export function AppShell() {
               role="menu"
             >
               <ProfileMenuItem
-                icon={ArrowLeftRight}
-                label="Cambiar de usuario"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onSwitchUser();
-                }}
-              />
-              <ProfileMenuItem
-                icon={KeyRound}
-                label="Licencia"
-                onClick={() => {
-                  setMenuOpen(false);
-                  navigate("/licencia");
-                }}
-              />
-              <ProfileMenuItem
-                icon={resolvedMode === "dark" ? Sun : Moon}
-                label={resolvedMode === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
-                onClick={() => {
-                  toggleMode();
-                  setMenuOpen(false);
-                }}
-              />
-              <div className="mx-2 my-1 h-px bg-[var(--menu-hover)]" />
-              <ProfileMenuItem
                 icon={LogOut}
                 label="Cerrar sesión"
                 danger
                 onClick={() => {
                   setMenuOpen(false);
                   setConfirmLogout(true);
-                }}
-              />
-              <div className="mx-2 my-1 h-px bg-[var(--menu-hover)]" />
-              <ProfileMenuItem
-                icon={Power}
-                label="Salir de la app"
-                danger
-                onClick={() => {
-                  setMenuOpen(false);
-                  setConfirmSalir(true);
                 }}
               />
             </div>
@@ -555,31 +509,6 @@ export function AppShell() {
           >
             <LogOut className="h-4 w-4" />
             Cerrar sesión
-          </Button>
-        </div>
-      </Modal>
-
-      <Modal
-        open={confirmSalir}
-        title="Salir de la app"
-        subtitle="Se cerrará AllCo por completo"
-        onClose={() => setConfirmSalir(false)}
-      >
-        <p className="text-sm text-fg-muted">
-          Se cerrará la aplicación. Podrá volver a abrirla desde el escritorio.
-        </p>
-        <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <Button variant="secondary" onClick={() => setConfirmSalir(false)}>
-            Cancelar
-          </Button>
-          <Button
-            variant="danger"
-            onClick={() => {
-              void exit(0);
-            }}
-          >
-            <Power className="h-4 w-4" />
-            Salir
           </Button>
         </div>
       </Modal>

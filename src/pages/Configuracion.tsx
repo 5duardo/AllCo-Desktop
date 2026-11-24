@@ -1,9 +1,10 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { Download, AppWindow, Calculator, Palette, Printer, RefreshCw, Save, Settings, Store, Trash2, Upload } from "lucide-react";
+import { Download, AppWindow, Calculator, Palette, Power, Printer, RefreshCw, Save, Settings, Store, Trash2, Upload, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { guardarMinimizarAlCerrar, leerMinimizarAlCerrar } from "@/lib/window";
 import { useToast } from "@/context/ToastContext";
@@ -16,12 +17,14 @@ import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
+import { UsuariosSection } from "@/pages/Usuarios";
 
 const CONFIG_TABS = [
   { id: "marca", label: "Marca", icon: Store },
   { id: "apariencia", label: "Apariencia", icon: Palette },
   { id: "factura", label: "Factura", icon: Printer },
   { id: "fiscal", label: "Fiscal", icon: Calculator },
+  { id: "usuarios", label: "Usuarios", icon: Users },
   { id: "sistema", label: "Sistema", icon: AppWindow },
 ] as const;
 
@@ -30,7 +33,27 @@ type ConfigTab = (typeof CONFIG_TABS)[number]["id"];
 export function ConfigPage() {
   const toast = useToast();
   const [cfg, setCfg] = useState<ConfigApp | null>(null);
-  const [tab, setTab] = useState<ConfigTab>("marca");
+  const [params, setParams] = useSearchParams();
+  const tab: ConfigTab = CONFIG_TABS.find((t) => t.id === params.get("tab"))?.id ?? "marca";
+
+  function selectTab(id: ConfigTab) {
+    setParams(id === "marca" ? {} : { tab: id }, { replace: true });
+  }
+
+  async function cambiarInicioAutomatico(activo: boolean) {
+    setInicioAutomatico(activo);
+    try {
+      await api.guardarInicioAutomatico(activo);
+      toast.ok(
+        activo
+          ? "AllCo se iniciará al encender la computadora."
+          : "Inicio automático desactivado.",
+      );
+    } catch (e) {
+      setInicioAutomatico(!activo);
+      toast.error(String(e));
+    }
+  }
 
   const [version, setVersion] = useState("");
   const [checking, setChecking] = useState(false);
@@ -40,6 +63,7 @@ export function ConfigPage() {
   const [updateMsg, setUpdateMsg] = useState("");
   const [updateError, setUpdateError] = useState("");
   const [minimizarAlCerrar, setMinimizarAlCerrar] = useState(leerMinimizarAlCerrar);
+  const [inicioAutomatico, setInicioAutomatico] = useState(true);
 
   useEffect(() => {
     api
@@ -49,6 +73,10 @@ export function ConfigPage() {
     getVersion()
       .then(setVersion)
       .catch(() => setVersion("0.1.0"));
+    api
+      .obtenerInicioAutomatico()
+      .then(setInicioAutomatico)
+      .catch((e) => toast.error(`No se pudo consultar el inicio automático: ${e}`));
   }, []);
 
   async function buscarActualizacion() {
@@ -269,7 +297,7 @@ export function ConfigPage() {
     lineas.push(
       `${"DESCRIPCION".padEnd(descW)} ${"TOTAL".padStart(totalW)}`.trimEnd(),
     );
-    lineas.push(fila(2, "Llanta 195/65R15", 2400), fila(1, "Lavado básico", 250));
+    lineas.push(fila(2, "Producto de ejemplo", 2400), fila(1, "Servicio de ejemplo", 250));
     lineas.push(sep, total("SUBTOTAL", 2650), sepFuerte);
     lineas.push(total("TOTAL", 2650), sepFuerte);
     if (ver(cfg.ticket_mostrar_pago)) lineas.push("Pago: efectivo");
@@ -287,8 +315,8 @@ export function ConfigPage() {
     <div className="page">
       <PageHero
         title="Configuración"
-        subtitle="Marca, apariencia, factura y sistema"
-        description="Organiza la configuración del negocio, la factura, la apariencia y las opciones de la app."
+        subtitle="Marca, apariencia, usuarios y sistema"
+        description="Organiza la configuración del negocio, los usuarios, la factura, la apariencia y las opciones de la app."
         icon={Settings}
         badge="Ajustes"
       />
@@ -305,7 +333,7 @@ export function ConfigPage() {
               key={t.id}
               type="button"
               aria-pressed={tab === t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => selectTab(t.id)}
               className={`seg-item ${tab === t.id ? "seg-item-active" : ""}`}
             >
               <Icon className="h-4 w-4" />
@@ -317,7 +345,7 @@ export function ConfigPage() {
 
       {tab === "marca" ? (
         cfg ? (
-          <Card className="max-w-4xl p-6">
+          <Card className="p-6">
             <h2 className="card-title flex items-center gap-2">
               <Store className="h-4 w-4 text-accent-fg" />
               Marca del negocio
@@ -432,7 +460,7 @@ export function ConfigPage() {
       ) : null}
 
       {tab === "apariencia" ? (
-        <Card className="max-w-4xl p-6">
+        <Card className="p-6">
           <h2 className="card-title flex items-center gap-2">
             <Palette className="h-4 w-4 text-accent-fg" />
             Apariencia
@@ -468,7 +496,38 @@ export function ConfigPage() {
       ) : null}
 
       {tab === "sistema" ? (
+        <>
         <Card className="p-6">
+          <div className="flex items-start gap-3">
+            <span className="icon-chip">
+              <Power className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="card-title">Inicio</h2>
+              <p className="mt-1 text-sm text-fg-muted">
+                AllCo puede abrirse automáticamente al encender la computadora.
+              </p>
+            </div>
+          </div>
+
+          <label className="mt-5 flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border bg-surface-2 px-4 py-3">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-fg">
+                Iniciar al encender la computadora
+              </span>
+              <span className="mt-0.5 block text-xs text-fg-muted">
+                Activado por defecto. Se aplica la próxima vez que inicie Windows.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={inicioAutomatico}
+              onChange={(e) => void cambiarInicioAutomatico(e.target.checked)}
+            />
+          </label>
+        </Card>
+
+        <Card className="mt-5 p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <span className="icon-chip">
@@ -489,8 +548,7 @@ export function ConfigPage() {
               Minimizar al pulsar la X
             </span>
             <span className="mt-0.5 block text-xs text-fg-muted">
-              La app se minimiza en la barra de tareas en vez de cerrarse. Para
-              salir por completo, use «Salir de la app» en el menú del perfil.
+              La app se minimiza en la barra de tareas en vez de cerrarse.
             </span>
           </span>
           <input
@@ -503,6 +561,7 @@ export function ConfigPage() {
           />
         </label>
         </Card>
+        </>
       ) : null}
 
       {tab === "factura" ? (
@@ -542,7 +601,7 @@ export function ConfigPage() {
                 <Textarea
                   value={cfg.ticket_encabezado}
                   onChange={(e) => setCfg({ ...cfg, ticket_encabezado: e.target.value })}
-                  placeholder="Ej. Llantera y Car Wash · Tel. 9256-1515"
+                  placeholder="Ej. Sucursal Norte · Tel. 0000-0000"
                   className="min-h-20 font-mono text-xs"
                 />
                 <p className="mt-1 text-xs text-fg-muted">
@@ -586,17 +645,17 @@ export function ConfigPage() {
             </div>
             <div>
               <p className="section-title mb-2">Vista previa del ticket</p>
-              <div className="mx-auto w-fit max-w-full rounded-2xl bg-[#111214] p-4">
+              <div className="mx-auto w-fit max-w-full rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
                 {cfg.negocio_logo && cfg.ticket_mostrar_logo === "1" ? (
                   <div className="mb-3 flex justify-center">
                     <img
                       src={cfg.negocio_logo}
                       alt=""
-                      className="h-16 w-16 object-contain"
+                      className="h-16 w-16 object-contain grayscale contrast-[2]"
                     />
                   </div>
                 ) : null}
-                <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-[#d6d9de]">
+                <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[#161719]">
                   {vistaTicket}
                 </pre>
               </div>
@@ -613,7 +672,7 @@ export function ConfigPage() {
       ) : null}
 
       {tab === "fiscal" ? (
-        <Card className="max-w-4xl p-6">
+        <Card className="p-6">
           <div className="flex items-start gap-3">
             <span className="icon-chip">
               <Calculator className="h-5 w-5" />
@@ -758,6 +817,8 @@ export function ConfigPage() {
         </p>
         </Card>
       ) : null}
+
+      {tab === "usuarios" ? <UsuariosSection /> : null}
 
       <p className="mt-6 text-center text-xs text-fg-faint">
         AllCo ·{" "}
