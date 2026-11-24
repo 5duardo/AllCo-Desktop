@@ -1,6 +1,7 @@
 use crate::commands::auth::{require_roles, require_user};
 use crate::db;
 use crate::AppState;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use std::process::Command;
@@ -464,6 +465,81 @@ fn bytes_ticket(contenido: &str) -> Vec<u8> {
     data
 }
 
+/// Convierte el logo del negocio (data URL) a un bitmap monocromo ESC/POS.
+fn logo_raster(data_url: &str, ancho_dots: u32) -> Option<Vec<u8>> {
+    let (_, b64) = data_url.split_once(',')?;
+    let raw = STANDARD.decode(b64.trim()).ok()?;
+    let img = image::load_from_memory(&raw).ok()?;
+    let (w, h) = (img.width(), img.height());
+    if w == 0 || h == 0 {
+        return None;
+    }
+    let escala = (ancho_dots as f32 / w as f32)
+        .min(ancho_dots as f32 / h as f32)
+        .min(1.0);
+    let nw = ((w as f32 * escala).round() as u32).max(1);
+    let nh = ((h as f32 * escala).round() as u32).max(1);
+    let resized = img.resize_exact(nw, nh, image::imageops::FilterType::Lanczos3).to_rgba8();
+
+    let width_bytes = ((nw + 7) / 8) as usize;
+    let mut payload = Vec::with_capacity(width_bytes * nh as usize);
+    for y in 0..nh {
+        for bx in 0..width_bytes {
+            let mut byte = 0u8;
+            for bit in 0..8 {
+                let x = bx as u32 * 8 + bit as u32;
+                if x < nw {
+                    let p = resized.get_pixel(x, y);
+                    let a = p[3] as f32 / 255.0;
+                    let r = p[0] as f32 * a + 255.0 * (1.0 - a);
+                    let g = p[1] as f32 * a + 255.0 * (1.0 - a);
+                    let b = p[2] as f32 * a + 255.0 * (1.0 - a);
+                    let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+                    if luma < 160.0 {
+                        byte |= 0x80 >> bit;
+                    }
+                }
+            }
+            payload.push(byte);
+        }
+    }
+
+    let mut comando = vec![
+        0x1D, 0x76, 0x30, 0x00,
+        (width_bytes & 0xFF) as u8,
+        ((width_bytes >> 8) & 0xFF) as u8,
+        (nh & 0xFF) as u8,
+        ((nh >> 8) & 0xFF) as u8,
+    ];
+    comando.extend(payload);
+    Some(comando)
+}
+
+fn bytes_ticket_con_logo(contenido: &str, logo: Option<&str>, ancho_dots: u32) -> Vec<u8> {
+    let mut data: Vec<u8> = Vec::new();
+    data.extend_from_slice(&[0x1B, 0x40]);
+    if let Some(url) = logo {
+        if let Some(imagen) = logo_raster(url, ancho_dots) {
+            data.extend_from_slice(&[0x1B, 0x61, 0x01]); // centrar logo
+            data.extend_from_slice(&imagen);
+            data.extend_from_slice(&[0x1B, 0x61, 0x00, 0x0A, 0x0A]);
+        }
+    }
+    let texto = sanitizar(contenido).replace('\n', "\r\n");
+    data.extend_from_slice(texto.as_bytes());
+    data.extend_from_slice(b"\r\n\r\n\r\n\r\n");
+    data.extend_from_slice(&[0x1D, 0x56, 0x42, 0x00]);
+    data
+}
+
+fn ancho_papel_dots(cfg: &crate::models::ConfigApp) -> u32 {
+    if cfg.ticket_ancho == "80" {
+        576
+    } else {
+        384
+    }
+}
+
 /// Imprime usando la impresora configurada, ya sea por USB directo o por Windows.
 pub fn imprimir_ticket(
     conn: &rusqlite::Connection,
@@ -480,7 +556,10 @@ pub fn imprimir_ticket(
         .ok()
         .flatten()
         .unwrap_or_else(|| "spooler".into());
-    let data = bytes_ticket(contenido);
+    let cfg = db::config_map(conn).ok();
+    let logotipo = cfg.as_ref().and_then(|c| c.negocio_logo.as_deref());
+    let dots = cfg.as_ref().map(ancho_papel_dots).unwrap_or(384);
+    let data = bytes_ticket_con_logo(contenido, logotipo, dots);
     if modo == "usb" {
         let ruta: String = conn
             .query_row(
@@ -576,16 +655,19 @@ pub fn imprimir_factura(
         return Err("No hay impresora configurada. Seleccione una en Dispositivos.".into());
     }
     let elegido = modo.or(Some(modo_cfg));
+    let cfg = db::config_map(&conn).ok();
+    let logotipo = cfg.as_ref().and_then(|c| c.negocio_logo.as_deref());
+    let dots = cfg.as_ref().map(ancho_papel_dots).unwrap_or(384);
+    let data = bytes_ticket_con_logo(&ticket, logotipo, dots);
     let resultado = match elegido.as_deref() {
         Some("usb") => {
-            let data = bytes_ticket(&ticket);
             if ruta_cfg.is_empty() {
                 usb_bridge::imprimir(&nombre, &data)
             } else {
                 usb_bridge::imprimir_ruta(&ruta_cfg, &data)
             }
         }
-        _ => raw_print(&nombre, &bytes_ticket(&ticket)),
+        _ => raw_print(&nombre, &data),
     };
     match resultado {
         Ok(_) => {

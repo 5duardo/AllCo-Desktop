@@ -8,6 +8,7 @@ import type {
   DispositivosData,
   EstadoPruebas,
   EventoSistema,
+  Licencia,
   MarcaNegocio,
   Movimiento,
   Producto,
@@ -27,6 +28,11 @@ export const api = {
   logout: () => invoke<void>("logout"),
   sesionActual: () => invoke<Usuario | null>("sesion_actual"),
   usuariosLogin: () => invoke<Usuario[]>("usuarios_login"),
+  restablecerPassword: (usuario: string, claveMaestra: string, nuevaPassword: string) =>
+    invoke<void>("restablecer_password", { usuario, claveMaestra, nuevaPassword }),
+  estadoLogin: (usuario: string) => invoke<number>("estado_login", { usuario }),
+  obtenerLicencia: () => invoke<Licencia>("obtener_licencia"),
+  guardarLicencia: (data: Licencia) => invoke<void>("guardar_licencia", { data }),
   registrarEscaneo: (codigo: string) =>
     invoke<void>("registrar_escaneo", { codigo }),
 

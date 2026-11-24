@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 
+const LIMITE_USB = 8;
+
 export function DispositivosPage() {
   const toast = useToast();
   const [data, setData] = useState<DispositivosData | null>(null);
@@ -17,6 +19,7 @@ export function DispositivosPage() {
   const [probando, setProbando] = useState("");
   const [scan, setScan] = useState("");
   const [scanResultado, setScanResultado] = useState("");
+  const [verTodosUsb, setVerTodosUsb] = useState(false);
   const reintentos = useRef(0);
 
   async function cargar(silencioso = false) {
@@ -101,6 +104,12 @@ export function DispositivosPage() {
       toast.error(String(err));
     }
   }
+
+  const usbVisibles = data
+    ? verTodosUsb
+      ? data.usb
+      : data.usb.slice(0, LIMITE_USB)
+    : [];
 
   return (
     <div className="page">
@@ -296,7 +305,7 @@ export function DispositivosPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.usb.map((d, i) => (
+              {usbVisibles.map((d, i) => (
                 <tr key={`${d.nombre}-${i}`}>
                   <td className="font-medium">{d.nombre}</td>
                   <td className="text-fg-muted">{d.clase}</td>
@@ -311,6 +320,19 @@ export function DispositivosPage() {
           </table>
           {data && data.usb.length === 0 ? (
             <p className="empty-state">No se detectaron dispositivos USB o HID.</p>
+          ) : null}
+          {data && data.usb.length > LIMITE_USB ? (
+            <div className="flex justify-end border-t border-border px-4 py-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setVerTodosUsb((v) => !v)}
+              >
+                {verTodosUsb
+                  ? "Ver menos"
+                  : `Ver más (${data.usb.length - LIMITE_USB})`}
+              </Button>
+            </div>
           ) : null}
         </Card>
       </section>

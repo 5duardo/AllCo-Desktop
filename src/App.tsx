@@ -20,6 +20,9 @@ import { ConfigPage } from "@/pages/Configuracion";
 import { StatusPage } from "@/pages/Status";
 import { BaseDatosPage } from "@/pages/BaseDatos";
 import { PruebasPage } from "@/pages/Pruebas";
+import { FacturacionPage } from "@/pages/Facturacion";
+import { TalonariosPage } from "@/pages/Talonarios";
+import { LicenciaPage } from "@/pages/Licencia";
 import { leerMinimizarAlCerrar } from "@/lib/window";
 import type { Rol } from "@/lib/types";
 
@@ -96,8 +99,10 @@ export default function App() {
               <Route element={<Protected />}>
                 <Route element={<AppShell />}>
                   <Route path="/" element={<DashboardPage />} />
+                  <Route path="/licencia" element={<LicenciaPage />} />
                   <Route element={<Protected roles={["admin", "caja"]} />}>
                     <Route path="/pos" element={<PosPage />} />
+                    <Route path="/facturacion" element={<FacturacionPage />} />
                     <Route path="/clientes" element={<ClientesPage />} />
                     <Route path="/dispositivos" element={<DispositivosPage />} />
                   </Route>
@@ -107,6 +112,7 @@ export default function App() {
                   <Route element={<Protected roles={["admin"]} />}>
                     <Route path="/servicios" element={<ServiciosPage />} />
                     <Route path="/reportes" element={<ReportesPage />} />
+                    <Route path="/talonarios" element={<TalonariosPage />} />
                     <Route path="/usuarios" element={<UsuariosPage />} />
                     <Route path="/config" element={<ConfigPage />} />
                     <Route path="/status" element={<StatusPage />} />

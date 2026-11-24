@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Banknote, Check, CheckCircle2, CreditCard, Landmark, Maximize2, Minimize2, Package, Printer, Search, ShoppingCart, Trash2, UserPlus, Wrench, X } from "lucide-react";
+import { Banknote, Check, CheckCircle2, CreditCard, Landmark, LayoutGrid, List, Maximize2, Minimize2, Package, Printer, ReceiptText, Search, ShoppingCart, Trash2, UserPlus, Wrench, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useFullscreen } from "@/context/FullscreenContext";
@@ -54,6 +54,26 @@ export function PosPage() {
     imagen: string | null;
   } | null>(null);
   const { pantallaCompleta, alternar: alternarPantallaCompleta } = useFullscreen();
+  const [logoNegocio, setLogoNegocio] = useState<string | null>(null);
+  const [vistaCatalogo, setVistaCatalogo] = useState<"grid" | "lista">(() =>
+    localStorage.getItem("allco-pos-catalogo-v2") === "grid" ? "grid" : "lista",
+  );
+  const catalogoScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem("allco-pos-catalogo-v2", vistaCatalogo);
+  }, [vistaCatalogo]);
+
+  useEffect(() => {
+    catalogoScrollRef.current?.scrollTo({ top: 0 });
+  }, [vistaCatalogo, catalogo]);
+
+  useEffect(() => {
+    api
+      .marcaNegocio()
+      .then((m) => setLogoNegocio(m.logo))
+      .catch(() => {});
+  }, []);
 
   const canDiscount = user?.rol === "admin";
 
@@ -322,7 +342,7 @@ export function PosPage() {
       setFactura(res.ticket);
       setFacturaId(res.id);
       setImpresion({ ok: res.impresion_ok, error: res.impresion_error ?? null });
-      toast.ok(`Venta #${res.id} registrada.`);
+      toast.ok(`Factura #${res.id} registrada.`);
       setCart([]);
       setDescuentoPorc(0);
       setRecibido("");
@@ -355,25 +375,12 @@ export function PosPage() {
     >
       {pantallaCompleta ? null : (
         <PageHero
-          title="Caja"
+          title="Punto de venta"
           subtitle="Cobra productos y servicios y genera la factura."
           description="Escanea el código de barras en cualquier parte de la pantalla, agrega servicios y registra el pago en efectivo, tarjeta o transferencia."
           icon={ShoppingCart}
           badge={cart.length > 0 ? `${cart.length} ítems` : "Punto de venta"}
-        >
-          <button
-            type="button"
-            onClick={alternarPantallaCompleta}
-            className="inline-flex h-9 items-center gap-2 rounded-xl border border-on-accent/30 bg-on-accent/10 px-3 text-xs font-semibold text-on-accent outline-none transition-colors hover:bg-on-accent/20 focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-          >
-            {pantallaCompleta ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
-            {pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"}
-          </button>
-        </PageHero>
+        />
       )}
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <Card className="flex min-h-0 flex-col overflow-hidden">
@@ -387,24 +394,68 @@ export function PosPage() {
                     : `${serviciosFiltrados.length} servicios`}
                 </p>
               </div>
-              <div className="seg" role="group" aria-label="Catálogo">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="seg" role="group" aria-label="Vista del catálogo">
+                  <button
+                    type="button"
+                    onClick={() => setVistaCatalogo("lista")}
+                    aria-pressed={vistaCatalogo === "lista"}
+                    aria-label="Ver en listado"
+                    title="Listado"
+                    className={cn("seg-item px-2.5", vistaCatalogo === "lista" && "seg-item-active")}
+                  >
+                    <List className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVistaCatalogo("grid")}
+                    aria-pressed={vistaCatalogo === "grid"}
+                    aria-label="Ver en cuadrícula"
+                    title="Cuadrícula"
+                    className={cn("seg-item px-2.5", vistaCatalogo === "grid" && "seg-item-active")}
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="seg grid w-[220px] grid-cols-2" role="group" aria-label="Catálogo">
+                  <button
+                    type="button"
+                    onClick={() => setCatalogo("productos")}
+                    aria-pressed={catalogo === "productos"}
+                    className={cn(
+                      "seg-item gap-1 px-1.5",
+                      catalogo === "productos" && "seg-item-active",
+                    )}
+                  >
+                    <Package className="h-5 w-5" />
+                    Productos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogo("servicios")}
+                    aria-pressed={catalogo === "servicios"}
+                    className={cn(
+                      "seg-item gap-1 px-1.5",
+                      catalogo === "servicios" && "seg-item-active",
+                    )}
+                  >
+                    <Wrench className="h-5 w-5" />
+                    Servicios
+                  </button>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setCatalogo("productos")}
-                  aria-pressed={catalogo === "productos"}
-                  className={cn("seg-item", catalogo === "productos" && "seg-item-active")}
+                  onClick={alternarPantallaCompleta}
+                  title={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"}
+                  aria-label={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"}
+                  className="inline-flex h-11 w-[220px] items-center justify-center gap-2 rounded-xl border border-border bg-surface-2 px-3 text-xs font-semibold text-fg-muted outline-none transition-colors hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
                 >
-                  <Package className="h-4 w-4" />
-                  Productos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCatalogo("servicios")}
-                  aria-pressed={catalogo === "servicios"}
-                  className={cn("seg-item", catalogo === "servicios" && "seg-item-active")}
-                >
-                  <Wrench className="h-4 w-4" />
-                  Servicios
+                  {pantallaCompleta ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
+                  )}
+                  <span>{pantallaCompleta ? "Salir" : "Pantalla completa"}</span>
                 </button>
               </div>
             </div>
@@ -419,21 +470,60 @@ export function PosPage() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div ref={catalogoScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
               {catalogo === "productos" ? (
                 productosFiltrados.length === 0 ? (
                   <p className="empty-state">No hay productos para ese criterio.</p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
+                ) : vistaCatalogo === "lista" ? (
+                  <div key="lista-productos" className="divide-y divide-border overflow-hidden rounded-xl border border-border">
                     {productosFiltrados.map((p) => (
                       <button
                         key={p.id}
                         type="button"
                         disabled={p.stock <= 0}
                         onClick={() => agregarProducto(p)}
-                        className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface-2 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-[var(--ring)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-surface-2"
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
                       >
-                        <span className="flex aspect-square w-full items-center justify-center overflow-hidden bg-surface">
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-2 text-fg-faint">
+                          {p.imagen ? (
+                            <img src={p.imagen} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <Package className="h-5 w-5" />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold">{p.nombre}</span>
+                          <span className="block truncate text-xs text-fg-muted">
+                            {p.medida || p.marca || "—"}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className="block text-sm font-bold text-accent-fg">
+                            {lempiras(p.precio_venta)}
+                          </span>
+                          <span
+                            className={cn(
+                              "block text-[11px]",
+                              p.stock <= p.stock_minimo ? "text-warn-fg" : "text-fg-muted",
+                            )}
+                          >
+                            {p.stock > 0 ? `${p.stock} disp.` : "Sin stock"}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div key="grid-productos" className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2.5">
+                    {productosFiltrados.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={p.stock <= 0}
+                        onClick={() => agregarProducto(p)}
+                        className="group flex aspect-square flex-col overflow-hidden rounded-xl border border-border bg-surface-2 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-[var(--ring)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-surface-2"
+                      >
+                        <span className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-surface">
                           {p.imagen ? (
                             <img
                               src={p.imagen}
@@ -445,14 +535,14 @@ export function PosPage() {
                             <Package className="h-8 w-8 text-fg-faint" />
                           )}
                         </span>
-                        <span className="flex flex-1 flex-col p-2.5">
+                        <span className="flex shrink-0 flex-col p-2.5">
                           <span className="line-clamp-2 text-sm font-semibold leading-snug">
                             {p.nombre}
                           </span>
                           <span className="mt-0.5 truncate text-[11px] text-fg-muted">
                             {p.medida || p.marca || "—"}
                           </span>
-                          <span className="mt-auto flex items-end justify-between gap-2 pt-1.5">
+                          <span className="mt-1 flex items-end justify-between gap-2">
                             <span className="text-sm font-bold text-accent-fg">
                               {lempiras(p.precio_venta)}
                             </span>
@@ -472,8 +562,8 @@ export function PosPage() {
                 )
               ) : serviciosFiltrados.length === 0 ? (
                 <p className="empty-state">No hay servicios para ese criterio.</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
+              ) : vistaCatalogo === "lista" ? (
+                <div key="lista-servicios" className="divide-y divide-border overflow-hidden rounded-xl border border-border">
                   {serviciosFiltrados.map((s) => (
                     <button
                       key={s.id}
@@ -488,18 +578,51 @@ export function PosPage() {
                           nombre: s.nombre,
                         })
                       }
-                      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface-2 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-[var(--ring)] active:translate-y-0"
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
                     >
-                      <span className="flex aspect-square w-full items-center justify-center bg-surface">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-fg">
+                        <Wrench className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{s.nombre}</span>
+                        <span className="block truncate text-xs text-fg-muted">
+                          {s.duracion_min} min
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-sm font-bold text-accent-fg">
+                        {lempiras(s.precio)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div key="grid-servicios" className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2.5">
+                  {serviciosFiltrados.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() =>
+                        addLine({
+                          tipo: "servicio",
+                          referencia_id: s.id,
+                          cantidad: 1,
+                          precio_unitario: s.precio,
+                          descuento: 0,
+                          nombre: s.nombre,
+                        })
+                      }
+                      className="group flex aspect-square flex-col overflow-hidden rounded-xl border border-border bg-surface-2 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-[var(--ring)] active:translate-y-0"
+                    >
+                      <span className="flex min-h-0 flex-1 items-center justify-center bg-surface">
                         <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent-soft text-accent-fg">
                           <Wrench className="h-6 w-6" />
                         </span>
                       </span>
-                      <span className="flex flex-1 flex-col p-2.5">
+                      <span className="flex shrink-0 flex-col p-2.5">
                         <span className="line-clamp-2 text-sm font-semibold leading-snug">
                           {s.nombre}
                         </span>
-                        <span className="mt-auto flex items-end justify-between gap-2 pt-1.5">
+                        <span className="mt-1 flex items-end justify-between gap-2">
                           <span className="text-sm font-bold text-accent-fg">
                             {lempiras(s.precio)}
                           </span>
@@ -514,12 +637,7 @@ export function PosPage() {
         </Card>
 
         <Card className="flex min-h-0 flex-col overflow-hidden">
-          <div
-            className={cn(
-              "flex shrink-0 items-center justify-between border-b border-border px-4 py-3",
-              pantallaCompleta && "pr-14",
-            )}
-          >
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
             <h2 className="card-title flex items-center gap-2">
               <ShoppingCart className="h-4 w-4 text-accent-fg" />
               Carrito
@@ -591,8 +709,10 @@ export function PosPage() {
 
           <form onSubmit={cobrar} className="shrink-0 space-y-3 border-t border-border p-4">
             <div>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-fg-muted">Cliente</span>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">
+                  Cliente
+                </span>
                 <button
                   type="button"
                   onClick={() => {
@@ -615,9 +735,9 @@ export function PosPage() {
               </Select>
             </div>
             {canDiscount ? (
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <Label>Descuento (%)</Label>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 px-3 py-2">
+                <span className="text-sm font-medium text-fg-muted">Descuento</span>
+                <div className="flex items-center gap-1.5">
                   <Input
                     type="number"
                     min={0}
@@ -629,18 +749,22 @@ export function PosPage() {
                         Math.min(100, Math.max(0, Number(e.target.value) || 0)),
                       )
                     }
-                    className="h-9"
+                    className="h-8 w-16 text-right"
+                    aria-label="Descuento de la factura en porcentaje"
                   />
+                  <span className="text-sm text-fg-muted">%</span>
+                  {descuentoPorc > 0 ? (
+                    <span className="ml-1 text-xs text-fg-muted">
+                      − {lempiras(descuento)}
+                    </span>
+                  ) : null}
                 </div>
-                {descuentoPorc > 0 ? (
-                  <span className="pb-2 text-xs text-fg-muted">
-                    − {lempiras(descuento)}
-                  </span>
-                ) : null}
               </div>
             ) : null}
             <div>
-              <Label>Método de pago</Label>
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">
+                Método de pago
+              </span>
               <div className="grid grid-cols-3 gap-1.5">
                 {METODOS.map((m) => (
                   <button
@@ -662,42 +786,43 @@ export function PosPage() {
               </div>
             </div>
             {metodo === "efectivo" ? (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label>Recibido (L)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={recibido}
-                    onChange={(e) => setRecibido(e.target.value)}
-                    className="h-9"
-                  />
+              <div className="space-y-2 rounded-xl border border-border bg-surface-2 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-fg-muted">Recibido</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-medium text-fg-faint">L</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={recibido}
+                      onChange={(e) => setRecibido(e.target.value)}
+                      className="h-8 w-24 text-right"
+                      aria-label="Efectivo recibido"
+                    />
+                  </div>
                 </div>
-                <div
-                  className={cn(
-                    "rounded-xl border px-3 py-2",
-                    cambio < 0
-                      ? "border-danger bg-danger-soft"
-                      : "border-ok bg-[var(--ok-soft)]",
-                  )}
-                >
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-fg-muted">
-                    {cambio < 0 ? "Falta" : "Cambio"}
-                  </p>
-                  <p
+                <div className="flex items-center justify-between gap-3 border-t border-border pt-2">
+                  <span className="text-sm text-fg-muted">
+                    {cambio < 0 ? "Falta para facturar" : "Cambio"}
+                  </span>
+                  <span
                     className={cn(
                       "text-lg font-bold tabular-nums",
-                      cambio < 0 ? "text-danger-fg" : "text-ok-fg",
+                      cambio < 0
+                        ? "text-danger-fg"
+                        : recibido.trim() === ""
+                          ? "text-fg-muted"
+                          : "text-ok-fg",
                     )}
                   >
                     {lempiras(Math.abs(cambio))}
-                  </p>
+                  </span>
                 </div>
               </div>
             ) : null}
 
-            <div className="space-y-1 border-t border-border pt-3 text-sm">
+            <div className="space-y-1.5 rounded-xl bg-surface-2 px-3.5 py-3 text-sm">
               <div className="flex justify-between text-fg-muted">
                 <span>Subtotal</span>
                 <span className="tabular-nums">{lempiras(subtotal)}</span>
@@ -708,25 +833,24 @@ export function PosPage() {
                   <span className="tabular-nums">− {lempiras(descuento)}</span>
                 </div>
               ) : null}
-              <div className="flex items-center justify-between pt-1 text-lg font-bold">
+              <div className="mt-1 flex items-center justify-between border-t border-border pt-2 text-lg font-bold">
                 <span>Total</span>
                 <span className="tabular-nums text-accent-fg">{lempiras(total)}</span>
               </div>
             </div>
 
-            <div className="pt-1">
-              <Button type="submit" size="xl" className="w-full" disabled={busy}>
-                <Banknote className="h-5 w-5" />
-                {busy ? "Registrando…" : `Cobrar ${lempiras(total)}`}
-              </Button>
-            </div>
+            <Button type="submit" size="xl" className="w-full" disabled={busy}>
+              <ReceiptText className="h-5 w-5" />
+              {busy ? "Facturando…" : `Facturar ${lempiras(total)}`}
+            </Button>
           </form>
         </Card>
       </div>
 
       <Modal
         open={!!factura}
-        title="Venta registrada"
+        small
+        title="Factura registrada"
         subtitle="La factura quedó guardada en la carpeta de datos."
         onClose={() => {
           setFactura(null);
@@ -734,11 +858,20 @@ export function PosPage() {
       >
         <p className="mb-3 flex items-center gap-2 text-sm font-medium text-ok-fg">
           <CheckCircle2 className="h-5 w-5" />
-          Cobro completado correctamente
+          Factura generada correctamente
         </p>
-        <pre className="whitespace-pre-wrap rounded-xl bg-surface-2 p-4 font-mono text-xs text-fg">
-          {factura}
-        </pre>
+        <div className="mx-auto w-fit max-w-full rounded-xl bg-surface-2 p-4">
+          <div className="mx-auto w-fit max-w-full overflow-x-auto">
+            {logoNegocio ? (
+              <img
+                src={logoNegocio}
+                alt=""
+                className="mx-auto mb-3 h-16 w-16 object-contain"
+              />
+            ) : null}
+            <pre className="whitespace-pre font-mono text-xs text-fg">{factura}</pre>
+          </div>
+        </div>
         {impresion?.ok ? (
           <p className="mt-3 text-sm font-medium text-ok-fg">Factura enviada a la impresora.</p>
         ) : (

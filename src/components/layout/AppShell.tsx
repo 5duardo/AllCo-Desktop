@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   ChevronsUpDown,
+  KeyRound,
   LifeBuoy,
   LogOut,
   Mail,
@@ -20,12 +21,15 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import {
   BeakerIcon,
+  CalculatorIcon,
   ChartBarIcon,
   CircleStackIcon,
   Cog6ToothIcon,
   CubeIcon,
+  DocumentTextIcon,
   HomeIcon,
   IdentificationIcon,
+  KeyIcon,
   PrinterIcon,
   ShoppingCartIcon,
   SignalIcon,
@@ -34,12 +38,15 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   BeakerIcon as BeakerSolidIcon,
+  CalculatorIcon as CalculatorSolidIcon,
   ChartBarIcon as ChartBarSolidIcon,
   CircleStackIcon as CircleStackSolidIcon,
   Cog6ToothIcon as Cog6ToothSolidIcon,
   CubeIcon as CubeSolidIcon,
+  DocumentTextIcon as DocumentTextSolidIcon,
   HomeIcon as HomeSolidIcon,
   IdentificationIcon as IdentificationSolidIcon,
+  KeyIcon as KeySolidIcon,
   PrinterIcon as PrinterSolidIcon,
   ShoppingCartIcon as ShoppingCartSolidIcon,
   SignalIcon as SignalSolidIcon,
@@ -57,11 +64,12 @@ import type { MarcaNegocio, Rol } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type NavIcon = ComponentType<{ className?: string }>;
-type NavGroup = "operacion" | "administracion" | "desarrollo";
+type NavGroup = "operacion" | "administracion" | "sistema" | "desarrollo";
 
 const GRUPOS: { id: NavGroup; label: string }[] = [
   { id: "operacion", label: "Operación" },
   { id: "administracion", label: "Administración" },
+  { id: "sistema", label: "Sistema" },
   { id: "desarrollo", label: "Desarrollo" },
 ];
 
@@ -75,16 +83,19 @@ const NAV: {
   devOnly?: boolean;
 }[] = [
   { to: "/", label: "Resumen", icon: HomeIcon, iconSolid: HomeSolidIcon, group: "operacion", roles: ["admin", "caja", "bodega"] },
-  { to: "/pos", label: "Caja", icon: ShoppingCartIcon, iconSolid: ShoppingCartSolidIcon, group: "operacion", roles: ["admin", "caja"] },
+  { to: "/pos", label: "Punto de venta", icon: ShoppingCartIcon, iconSolid: ShoppingCartSolidIcon, group: "operacion", roles: ["admin", "caja"] },
+  { to: "/facturacion", label: "Facturación", icon: DocumentTextIcon, iconSolid: DocumentTextSolidIcon, group: "operacion", roles: ["admin", "caja"] },
   { to: "/clientes", label: "Clientes", icon: IdentificationIcon, iconSolid: IdentificationSolidIcon, group: "operacion", roles: ["admin", "caja"] },
   { to: "/dispositivos", label: "Dispositivos", icon: PrinterIcon, iconSolid: PrinterSolidIcon, group: "operacion", roles: ["admin", "caja"] },
   { to: "/inventario", label: "Inventario", icon: CubeIcon, iconSolid: CubeSolidIcon, group: "operacion", roles: ["admin", "bodega"] },
   { to: "/servicios", label: "Servicios", icon: WrenchIcon, iconSolid: WrenchSolidIcon, group: "operacion", roles: ["admin"] },
   { to: "/reportes", label: "Reportes", icon: ChartBarIcon, iconSolid: ChartBarSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/talonarios", label: "Talonarios", icon: CalculatorIcon, iconSolid: CalculatorSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/usuarios", label: "Usuarios", icon: UsersIcon, iconSolid: UsersSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/status", label: "Status de uso", icon: SignalIcon, iconSolid: SignalSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/base-datos", label: "Base de datos", icon: CircleStackIcon, iconSolid: CircleStackSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/config", label: "Configuración", icon: Cog6ToothIcon, iconSolid: Cog6ToothSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/licencia", label: "Licencia", icon: KeyIcon, iconSolid: KeySolidIcon, group: "sistema", roles: ["admin", "caja", "bodega"] },
   { to: "/pruebas", label: "Pruebas", icon: BeakerIcon, iconSolid: BeakerSolidIcon, group: "desarrollo", roles: ["admin"], devOnly: true },
 ];
 
@@ -365,6 +376,14 @@ export function AppShell() {
                 onClick={() => {
                   setMenuOpen(false);
                   onSwitchUser();
+                }}
+              />
+              <ProfileMenuItem
+                icon={KeyRound}
+                label="Licencia"
+                onClick={() => {
+                  setMenuOpen(false);
+                  navigate("/licencia");
                 }}
               />
               <ProfileMenuItem

@@ -123,6 +123,7 @@ export type VentaListado = {
   metodo_pago: string;
   estado: string;
   items: number;
+  cliente_nombre: string | null;
 };
 
 export type Movimiento = {
@@ -221,11 +222,27 @@ export type ConfigApp = {
   ticket_mostrar_cliente: string;
   ticket_mostrar_pago: string;
   ticket_mostrar_recibido: string;
+  ticket_ancho: string;
+  fiscal_rtn: string;
+  fiscal_cai: string;
+  fiscal_rango_desde: string;
+  fiscal_rango_hasta: string;
+  fiscal_fecha_limite: string;
+  fiscal_isv: string;
+  fiscal_precios_con_isv: string;
 };
 
 export type MarcaNegocio = {
   nombre: string;
   logo: string | null;
+};
+
+export type Licencia = {
+  titular: string;
+  plan: string;
+  inicio: string;
+  expira: string;
+  notas: string;
 };
 
 export type CartLine = VentaItemIn & {

@@ -1,8 +1,27 @@
 use crate::db;
 use crate::models::UsuarioPublico;
 use crate::AppState;
+use chrono::{Duration, Local, NaiveDateTime};
 use rusqlite::{params, OptionalExtension};
 use tauri::State;
+
+fn espera_por_intentos(intentos: i64) -> i64 {
+    match intentos {
+        0..=2 => 0,
+        3 => 30,
+        4 => 120,
+        5 => 300,
+        6 => 900,
+        _ => 1800,
+    }
+}
+
+fn segundos_bloqueo(bloqueado_hasta: &str) -> i64 {
+    NaiveDateTime::parse_from_str(bloqueado_hasta, "%Y-%m-%d %H:%M:%S")
+        .map(|hasta| (hasta - Local::now().naive_local()).num_seconds())
+        .unwrap_or(0)
+        .max(0)
+}
 
 pub fn require_user(state: &AppState) -> Result<UsuarioPublico, String> {
     state
@@ -29,6 +48,71 @@ pub fn require_dev(state: &AppState) -> Result<UsuarioPublico, String> {
     Ok(user)
 }
 
+/// Contraseña maestra de soporte AllCo para restablecer accesos locales.
+/// Hardcodeada a propósito: solo el equipo de soporte la conoce.
+const CLAVE_MAESTRA_SOPORTE: &str = "Allco#Soporte2026";
+
+#[tauri::command]
+pub fn restablecer_password(
+    state: State<AppState>,
+    usuario: String,
+    clave_maestra: String,
+    nueva_password: String,
+) -> Result<(), String> {
+    if clave_maestra != CLAVE_MAESTRA_SOPORTE {
+        return Err("Contraseña maestra incorrecta.".into());
+    }
+    let nueva = nueva_password.trim();
+    if nueva.len() < 6 {
+        return Err("La nueva contraseña debe tener al menos 6 caracteres.".into());
+    }
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let id: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM usuarios WHERE lower(usuario) = lower(?1)",
+            params![usuario.trim()],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    let Some(id) = id else {
+        return Err("Usuario no encontrado.".into());
+    };
+    let hash = bcrypt::hash(nueva, db::BCRYPT_COST).map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE usuarios SET password_hash = ?1, intentos_fallidos = 0, bloqueado_hasta = NULL
+         WHERE id = ?2",
+        params![hash, id],
+    )
+    .map_err(|e| e.to_string())?;
+    let _ = db::log_event(
+        &conn,
+        "password_reset",
+        Some(id),
+        "Contraseña restablecida con clave maestra de soporte",
+        None,
+    );
+    Ok(())
+}
+
+#[tauri::command]
+pub fn estado_login(state: State<AppState>, usuario: String) -> Result<i64, String> {
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let row: Option<Option<String>> = conn
+        .query_row(
+            "SELECT bloqueado_hasta FROM usuarios WHERE lower(usuario) = lower(?1)",
+            params![usuario.trim()],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    Ok(row
+        .flatten()
+        .as_deref()
+        .map(segundos_bloqueo)
+        .unwrap_or(0))
+}
+
 #[tauri::command]
 pub fn login(
     state: State<AppState>,
@@ -38,7 +122,8 @@ pub fn login(
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let row = conn
         .query_row(
-            "SELECT id, nombre, usuario, password_hash, rol, activo, es_dev
+            "SELECT id, nombre, usuario, password_hash, rol, activo, es_dev,
+                    intentos_fallidos, bloqueado_hasta
              FROM usuarios WHERE lower(usuario) = lower(?1)",
             params![usuario.trim()],
             |r| {
@@ -50,6 +135,8 @@ pub fn login(
                     r.get::<_, String>(4)?,
                     r.get::<_, i64>(5)? != 0,
                     r.get::<_, i64>(6)? != 0,
+                    r.get::<_, i64>(7)?,
+                    r.get::<_, Option<String>>(8)?,
                 ))
             },
         )
@@ -61,9 +148,25 @@ pub fn login(
         Err("Usuario o contraseña incorrectos.".into())
     };
 
-    let Some((id, nombre, user_name, hash, rol, activo, dev)) = row else {
+    let Some((id, nombre, user_name, hash, rol, activo, dev, intentos, bloqueado)) = row else {
         return fail(&conn, "Usuario no existe");
     };
+
+    if let Some(hasta) = bloqueado.as_deref() {
+        let restante = segundos_bloqueo(hasta);
+        if restante > 0 {
+            db::log_event(
+                &conn,
+                "login_fail",
+                Some(id),
+                "Cuenta bloqueada por intentos fallidos",
+                None,
+            )?;
+            return Err(format!(
+                "Demasiados intentos. Intente de nuevo en {restante} segundos."
+            ));
+        }
+    }
 
     if !activo {
         db::log_event(&conn, "login_fail", Some(id), "Usuario inactivo", None)?;
@@ -72,8 +175,42 @@ pub fn login(
 
     let ok = bcrypt::verify(&password, &hash).map_err(|e| e.to_string())?;
     if !ok {
-        return fail(&conn, "Contraseña incorrecta");
+        let nuevos = intentos + 1;
+        let espera = espera_por_intentos(nuevos);
+        if espera > 0 {
+            let hasta = (Local::now() + Duration::seconds(espera))
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string();
+            conn.execute(
+                "UPDATE usuarios SET intentos_fallidos = ?1, bloqueado_hasta = ?2 WHERE id = ?3",
+                params![nuevos, hasta, id],
+            )
+            .map_err(|e| e.to_string())?;
+            db::log_event(
+                &conn,
+                "login_fail",
+                Some(id),
+                &format!("Contraseña incorrecta; bloqueado {espera} segundos"),
+                None,
+            )?;
+            return Err(format!(
+                "Demasiados intentos. Intente de nuevo en {espera} segundos."
+            ));
+        }
+        conn.execute(
+            "UPDATE usuarios SET intentos_fallidos = ?1, bloqueado_hasta = NULL WHERE id = ?2",
+            params![nuevos, id],
+        )
+        .map_err(|e| e.to_string())?;
+        db::log_event(&conn, "login_fail", Some(id), "Contraseña incorrecta", None)?;
+        return Err("Usuario o contraseña incorrectos.".into());
     }
+
+    conn.execute(
+        "UPDATE usuarios SET intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id = ?1",
+        params![id],
+    )
+    .map_err(|e| e.to_string())?;
 
     let public = UsuarioPublico {
         id,

@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Copy, Minimize2, Minus, Square, X } from "lucide-react";
+import { Copy, Minus, Square, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useFullscreen } from "@/context/FullscreenContext";
 import { cn } from "@/lib/utils";
@@ -54,7 +54,7 @@ function ResizeHandles({ maximizado }: { maximizado: boolean }) {
 export function WindowFrame({ children }: { children: ReactNode }) {
   const tauri = enTauri();
   const [maximizado, setMaximizado] = useState(false);
-  const { pantallaCompleta, salir } = useFullscreen();
+  const { pantallaCompleta } = useFullscreen();
 
   useEffect(() => {
     if (!tauri) return;
@@ -153,17 +153,6 @@ export function WindowFrame({ children }: { children: ReactNode }) {
 
       <div className="relative min-h-0 flex-1 overflow-hidden">{children}</div>
       <ResizeHandles maximizado={maximizado || pantallaCompleta} />
-      {pantallaCompleta ? (
-        <button
-          type="button"
-          onClick={salir}
-          title="Salir de pantalla completa (Esc)"
-          aria-label="Salir de pantalla completa"
-          className="fixed right-3 top-3 z-[80] flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface/90 text-fg shadow-lg backdrop-blur transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-        >
-          <Minimize2 className="h-4 w-4" />
-        </button>
-      ) : null}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-use crate::models::{ConfigApp, MarcaNegocio, Producto, UsuarioPublico};
+use crate::models::{ConfigApp, Licencia, MarcaNegocio, Producto, UsuarioPublico};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::path::Path;
 
@@ -30,6 +30,8 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
             rol TEXT NOT NULL CHECK (rol IN ('admin','bodega','caja')),
             activo INTEGER NOT NULL DEFAULT 1,
             es_dev INTEGER NOT NULL DEFAULT 0,
+            intentos_fallidos INTEGER NOT NULL DEFAULT 0,
+            bloqueado_hasta TEXT,
             created_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS proveedores (
@@ -194,6 +196,30 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| e.to_string())?;
+    }
+
+    // Control de intentos fallidos de inicio de sesión.
+    let columnas_usuarios: Vec<String> = {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(usuarios)")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        let mut nombres = Vec::new();
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            nombres.push(row.get::<_, String>(1).map_err(|e| e.to_string())?);
+        }
+        nombres
+    };
+    if !columnas_usuarios.iter().any(|c| c == "intentos_fallidos") {
+        conn.execute(
+            "ALTER TABLE usuarios ADD COLUMN intentos_fallidos INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    if !columnas_usuarios.iter().any(|c| c == "bloqueado_hasta") {
+        conn.execute("ALTER TABLE usuarios ADD COLUMN bloqueado_hasta TEXT", [])
+            .map_err(|e| e.to_string())?;
     }
 
     // Agrega la imagen del producto a bases de datos existentes.
@@ -459,6 +485,23 @@ pub fn config_map(conn: &Connection) -> Result<ConfigApp, String> {
             .get("ticket_mostrar_recibido")
             .cloned()
             .unwrap_or_else(|| "1".into()),
+        ticket_ancho: map
+            .get("ticket_ancho")
+            .cloned()
+            .unwrap_or_else(|| "58".into()),
+        fiscal_rtn: map.get("fiscal_rtn").cloned().unwrap_or_default(),
+        fiscal_cai: map.get("fiscal_cai").cloned().unwrap_or_default(),
+        fiscal_rango_desde: map.get("fiscal_rango_desde").cloned().unwrap_or_default(),
+        fiscal_rango_hasta: map.get("fiscal_rango_hasta").cloned().unwrap_or_default(),
+        fiscal_fecha_limite: map.get("fiscal_fecha_limite").cloned().unwrap_or_default(),
+        fiscal_isv: map
+            .get("fiscal_isv")
+            .cloned()
+            .unwrap_or_else(|| "15".into()),
+        fiscal_precios_con_isv: map
+            .get("fiscal_precios_con_isv")
+            .cloned()
+            .unwrap_or_else(|| "1".into()),
     })
 }
 
@@ -468,6 +511,46 @@ pub fn marca_negocio(conn: &Connection) -> Result<MarcaNegocio, String> {
         nombre: cfg.negocio_nombre,
         logo: cfg.negocio_logo,
     })
+}
+
+pub fn licencia(conn: &Connection) -> Result<Licencia, String> {
+    let mut stmt = conn
+        .prepare("SELECT clave, valor FROM configuracion WHERE clave LIKE 'licencia_%'")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+        .map_err(|e| e.to_string())?;
+    let mut map = std::collections::HashMap::new();
+    for row in rows {
+        let (k, v) = row.map_err(|e| e.to_string())?;
+        map.insert(k, v);
+    }
+    Ok(Licencia {
+        titular: map.get("licencia_titular").cloned().unwrap_or_default(),
+        plan: map.get("licencia_plan").cloned().unwrap_or_default(),
+        inicio: map.get("licencia_inicio").cloned().unwrap_or_default(),
+        expira: map.get("licencia_expira").cloned().unwrap_or_default(),
+        notas: map.get("licencia_notas").cloned().unwrap_or_default(),
+    })
+}
+
+pub fn save_licencia(conn: &Connection, lic: &Licencia) -> Result<(), String> {
+    let pairs = [
+        ("licencia_titular", lic.titular.as_str()),
+        ("licencia_plan", lic.plan.as_str()),
+        ("licencia_inicio", lic.inicio.as_str()),
+        ("licencia_expira", lic.expira.as_str()),
+        ("licencia_notas", lic.notas.as_str()),
+    ];
+    for (k, v) in pairs {
+        conn.execute(
+            "INSERT INTO configuracion (clave, valor) VALUES (?1, ?2)
+             ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+            params![k, v],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 pub fn save_config(conn: &Connection, cfg: &ConfigApp) -> Result<(), String> {
@@ -486,6 +569,14 @@ pub fn save_config(conn: &Connection, cfg: &ConfigApp) -> Result<(), String> {
         ("ticket_mostrar_cliente", cfg.ticket_mostrar_cliente.as_str()),
         ("ticket_mostrar_pago", cfg.ticket_mostrar_pago.as_str()),
         ("ticket_mostrar_recibido", cfg.ticket_mostrar_recibido.as_str()),
+        ("ticket_ancho", cfg.ticket_ancho.as_str()),
+        ("fiscal_rtn", cfg.fiscal_rtn.as_str()),
+        ("fiscal_cai", cfg.fiscal_cai.as_str()),
+        ("fiscal_rango_desde", cfg.fiscal_rango_desde.as_str()),
+        ("fiscal_rango_hasta", cfg.fiscal_rango_hasta.as_str()),
+        ("fiscal_fecha_limite", cfg.fiscal_fecha_limite.as_str()),
+        ("fiscal_isv", cfg.fiscal_isv.as_str()),
+        ("fiscal_precios_con_isv", cfg.fiscal_precios_con_isv.as_str()),
     ];
     for (k, v) in pairs {
         conn.execute(

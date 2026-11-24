@@ -8,6 +8,7 @@ import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Stat } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { cn } from "@/lib/utils";
 
 type Tab = "ventas" | "stock";
@@ -91,13 +92,13 @@ export function ReportesPage() {
             </div>
             {periodo === "rango" ? (
               <>
-                <div>
+                <div className="w-40">
                   <Label>Desde</Label>
-                  <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+                  <DatePicker value={desde} onChange={setDesde} />
                 </div>
-                <div>
+                <div className="w-40">
                   <Label>Hasta</Label>
-                  <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+                  <DatePicker value={hasta} onChange={setHasta} />
                 </div>
               </>
             ) : null}

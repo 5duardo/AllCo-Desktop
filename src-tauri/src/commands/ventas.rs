@@ -16,6 +16,7 @@ fn venta_listado_from_row(r: &rusqlite::Row) -> rusqlite::Result<VentaListado> {
         metodo_pago: r.get(5)?,
         estado: r.get(6)?,
         items: r.get(7)?,
+        cliente_nombre: r.get(8)?,
     })
 }
 
@@ -72,7 +73,7 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
     let venta_id = tx.last_insert_rowid();
 
     let mut subtotal = 0.0;
-    let mut lineas: Vec<String> = Vec::new();
+    let mut lineas: Vec<(i64, String, f64)> = Vec::new();
 
     for item in &data.items {
         if item.cantidad <= 0 {
@@ -137,12 +138,7 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
             ],
         )
         .map_err(|e| e.to_string())?;
-        lineas.push(format!(
-            "{} x {}  {}",
-            item.cantidad,
-            truncate(&nombre, 18),
-            db::money(linea)
-        ));
+        lineas.push((item.cantidad, nombre.clone(), linea));
     }
 
     let total = db::round2(subtotal - data.descuento);
@@ -171,6 +167,7 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
         &user.nombre,
         cliente_nombre.as_deref(),
         &lineas,
+        subtotal,
         data.descuento,
         total,
         &data.metodo_pago,
@@ -231,13 +228,39 @@ fn truncate(s: &str, max: usize) -> String {
     }
 }
 
+fn centrar(texto: &str, ancho: usize) -> String {
+    let texto = texto.trim();
+    let largo = texto.chars().count();
+    if largo >= ancho {
+        return truncate(texto, ancho);
+    }
+    format!("{}{}", " ".repeat((ancho - largo) / 2), texto)
+}
+
+fn monto_ticket(n: f64) -> String {
+    db::money(n).trim_start_matches("L ").to_string()
+}
+
+fn fecha_ticket(fecha: &str) -> String {
+    let mut partes = fecha.splitn(2, ' ');
+    let dia = partes.next().unwrap_or("");
+    let hora = partes.next().unwrap_or("");
+    let f: Vec<&str> = dia.split('-').collect();
+    if f.len() == 3 {
+        format!("{}/{}/{} {}", f[2], f[1], f[0], hora)
+    } else {
+        fecha.to_string()
+    }
+}
+
 fn build_ticket(
     cfg: &ConfigApp,
     id: i64,
     fecha: &str,
     cajero: &str,
     cliente: Option<&str>,
-    lineas: &[String],
+    lineas: &[(i64, String, f64)],
+    subtotal: f64,
     descuento: f64,
     total: f64,
     metodo: &str,
@@ -245,50 +268,107 @@ fn build_ticket(
     cambio: f64,
 ) -> String {
     let ver = |valor: &str| valor == "1";
+    let ancho: usize = if cfg.ticket_ancho == "80" { 48 } else { 32 };
+    let (cant_w, desc_w, total_w) = if ancho >= 48 { (5, 30, 12) } else { (4, 18, 9) };
+    let label_w = ancho.saturating_sub(total_w);
+    let sep = "-".repeat(ancho);
+    let sep_fuerte = "=".repeat(ancho);
     let mut t = String::new();
-    t.push_str(&format!("{}\n", cfg.negocio_nombre));
+
+    t.push_str(&centrar(&cfg.negocio_nombre, ancho));
+    t.push('\n');
     if ver(&cfg.ticket_mostrar_direccion) && !cfg.negocio_direccion.trim().is_empty() {
-        t.push_str(&format!("{}\n", cfg.negocio_direccion));
-    }
-    for linea in cfg.ticket_encabezado.lines() {
-        if !linea.trim().is_empty() {
-            t.push_str(linea);
+        for linea in cfg.negocio_direccion.lines() {
+            t.push_str(&centrar(linea, ancho));
             t.push('\n');
         }
     }
-    t.push_str("--------------------------------\n");
+    for linea in cfg.ticket_encabezado.lines() {
+        if !linea.trim().is_empty() {
+            t.push_str(&centrar(linea, ancho));
+            t.push('\n');
+        }
+    }
+    t.push_str(&sep);
+    t.push('\n');
     t.push_str(&format!("Factura #{id}\n"));
     if ver(&cfg.ticket_mostrar_fecha) {
-        t.push_str(&format!("{fecha}\n"));
+        t.push_str(&fecha_ticket(fecha));
+        t.push('\n');
     }
     if ver(&cfg.ticket_mostrar_cajero) {
-        t.push_str(&format!("Cajero: {cajero}\n"));
+        let ancho_texto = ancho.saturating_sub("Cajero: ".len());
+        t.push_str(&format!("Cajero: {}\n", truncate(cajero, ancho_texto)));
     }
     if ver(&cfg.ticket_mostrar_cliente) {
         if let Some(c) = cliente {
-            t.push_str(&format!("Cliente: {}\n", truncate(c, 28)));
+            let ancho_texto = ancho.saturating_sub("Cliente: ".len());
+            t.push_str(&format!("Cliente: {}\n", truncate(c, ancho_texto)));
         }
     }
-    t.push_str("--------------------------------\n");
-    for l in lineas {
-        t.push_str(l);
+    t.push_str(&sep);
+    t.push('\n');
+
+    let encabezado = format!(
+        "{:<cant_w$} {:<desc_w$}{:>total_w$}",
+        "CANT", "DESCRIPCION", "TOTAL"
+    );
+    t.push_str(encabezado.trim_end());
+    t.push('\n');
+    for (cant, nombre, importe) in lineas {
+        let fila = format!(
+            "{:<cant_w$} {:<desc_w$}{:>total_w$}",
+            cant,
+            truncate(nombre, desc_w),
+            monto_ticket(*importe)
+        );
+        t.push_str(fila.trim_end());
         t.push('\n');
     }
-    t.push_str("--------------------------------\n");
+    t.push_str(&sep);
+    t.push('\n');
+    t.push_str(&format!(
+        "{:<label_w$}{:>total_w$}\n",
+        "SUBTOTAL",
+        monto_ticket(subtotal)
+    ));
     if descuento > 0.0 {
-        t.push_str(&format!("Descuento      {}\n", db::money(descuento)));
+        t.push_str(&format!(
+            "{:<label_w$}{:>total_w$}\n",
+            "DESCUENTO",
+            monto_ticket(descuento)
+        ));
     }
-    t.push_str(&format!("TOTAL          {}\n", db::money(total)));
+    t.push_str(&sep_fuerte);
+    t.push('\n');
+    t.push_str(&format!(
+        "{:<label_w$}{:>total_w$}\n",
+        "TOTAL",
+        monto_ticket(total)
+    ));
+    t.push_str(&sep_fuerte);
+    t.push('\n');
     if ver(&cfg.ticket_mostrar_pago) {
         t.push_str(&format!("Pago: {metodo}\n"));
     }
     if ver(&cfg.ticket_mostrar_recibido) && metodo == "efectivo" {
-        t.push_str(&format!("Recibido       {}\n", db::money(recibido)));
-        t.push_str(&format!("Cambio         {}\n", db::money(cambio)));
+        t.push_str(&format!(
+            "{:<label_w$}{:>total_w$}\n",
+            "Recibido",
+            monto_ticket(recibido)
+        ));
+        t.push_str(&format!(
+            "{:<label_w$}{:>total_w$}\n",
+            "Cambio",
+            monto_ticket(cambio)
+        ));
     }
-    t.push_str("--------------------------------\n");
-    t.push_str(&cfg.ticket_pie);
+    t.push_str(&sep);
     t.push('\n');
+    for linea in cfg.ticket_pie.lines() {
+        t.push_str(&centrar(linea, ancho));
+        t.push('\n');
+    }
     t
 }
 
@@ -376,9 +456,10 @@ pub fn listar_ventas(
     let mut stmt = conn
         .prepare(
             "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
-                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id)
+                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
              FROM ventas v
              JOIN usuarios u ON u.id = v.usuario_id
+             LEFT JOIN clientes c ON c.id = v.cliente_id
              WHERE date(v.fecha) >= date(?1) AND date(v.fecha) <= date(?2)
              ORDER BY v.id DESC LIMIT 300",
         )

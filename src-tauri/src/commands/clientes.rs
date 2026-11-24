@@ -110,8 +110,9 @@ pub fn facturas_cliente(
     let mut stmt = conn
         .prepare(
             "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
-                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id)
+                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
              FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
+             LEFT JOIN clientes c ON c.id = v.cliente_id
              WHERE v.cliente_id = ?1
              ORDER BY v.id DESC",
         )
@@ -127,6 +128,7 @@ pub fn facturas_cliente(
                 metodo_pago: r.get(5)?,
                 estado: r.get(6)?,
                 items: r.get(7)?,
+                cliente_nombre: r.get(8)?,
             })
         })
         .map_err(|e| e.to_string())?;

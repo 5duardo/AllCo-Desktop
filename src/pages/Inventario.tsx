@@ -23,6 +23,7 @@ import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
@@ -578,7 +579,7 @@ export function InventarioPage() {
       ) : null}
 
       {vista === "movimientos" ? (
-        <Card className="overflow-x-auto">
+        <Card>
           <div className="flex flex-wrap items-end gap-3 border-b border-border p-3">
             <div>
               <Label>Tipo</Label>
@@ -589,13 +590,13 @@ export function InventarioPage() {
                 <option value="ajuste">Ajustes</option>
               </Select>
             </div>
-            <div>
+            <div className="w-40">
               <Label>Desde</Label>
-              <Input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+              <DatePicker value={desde} onChange={setDesde} />
             </div>
-            <div>
+            <div className="w-40">
               <Label>Hasta</Label>
-              <Input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+              <DatePicker value={hasta} onChange={setHasta} />
             </div>
             {desde || hasta ? (
               <Button

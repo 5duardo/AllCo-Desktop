@@ -21,6 +21,19 @@ let iniciado = false;
 export function SplashWindow() {
   const [estado, setEstado] = useState("Buscando actualización…");
 
+  // La ventana nace oculta: se muestra recién cuando el splash ya pintó,
+  // así no se ve el fondo blanco del WebView mientras carga.
+  useEffect(() => {
+    const win = getCurrentWindow();
+    void win.setBackgroundColor("#08090a").catch(() => {});
+    let raf = 0;
+    raf = requestAnimationFrame(() => {
+      void win.show().catch(() => {});
+      void win.setFocus().catch(() => {});
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   useEffect(() => {
     if (iniciado) return;
     iniciado = true;

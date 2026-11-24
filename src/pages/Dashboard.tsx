@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  Package,
   PackageCheck,
   Receipt,
   ShoppingCart,
@@ -33,6 +34,8 @@ const PERIODOS = [
   { id: "30d", label: "30 días" },
   { id: "todo", label: "Todo" },
 ] as const;
+
+const LIMITE_ALERTAS = 5;
 
 type Periodo = (typeof PERIODOS)[number]["id"];
 
@@ -81,20 +84,23 @@ function fechaCorta(f: string) {
 }
 
 function GraficoSerie({ serie }: { serie: DiaVenta[] }) {
-  if (serie.length === 0) {
-    return (
-      <div className="flex h-48 items-center justify-center text-sm text-fg-muted">
-        Sin ventas en el periodo.
-      </div>
-    );
-  }
+  const hoy = new Date();
+  const ayer = new Date(hoy);
+  ayer.setDate(hoy.getDate() - 1);
+  const datos: DiaVenta[] =
+    serie.length > 0
+      ? serie
+      : [
+          { fecha: fechaISO(ayer), total: 0, cantidad: 0 },
+          { fecha: fechaISO(hoy), total: 0, cantidad: 0 },
+        ];
   const W = 600;
   const H = 190;
   const pad = 18;
-  const max = Math.max(...serie.map((d) => d.total), 1);
-  const unico = serie.length === 1;
-  const step = serie.length > 1 ? (W - pad * 2) / (serie.length - 1) : 0;
-  const puntos = serie.map(
+  const max = Math.max(...datos.map((d) => d.total), 1);
+  const unico = datos.length === 1;
+  const step = datos.length > 1 ? (W - pad * 2) / (datos.length - 1) : 0;
+  const puntos = datos.map(
     (d, i) =>
       [
         unico ? W / 2 : pad + i * step,
@@ -152,9 +158,9 @@ function GraficoSerie({ serie }: { serie: DiaVenta[] }) {
         )}
       </svg>
       <div className="mt-2 flex items-center justify-between gap-3 text-xs text-fg-faint">
-        <span>{fechaCorta(serie[0].fecha)}</span>
+        <span>{fechaCorta(datos[0].fecha)}</span>
         <span>Máximo {lempiras(max)}</span>
-        <span>{fechaCorta(serie[serie.length - 1].fecha)}</span>
+        <span>{fechaCorta(datos[datos.length - 1].fecha)}</span>
       </div>
     </div>
   );
@@ -167,16 +173,18 @@ function MetodosPago({
   metodos: TotalesGrupo[];
   total: number;
 }) {
-  if (metodos.length === 0) {
-    return (
-      <div className="flex h-48 items-center justify-center text-sm text-fg-muted">
-        Sin ventas en el periodo.
-      </div>
-    );
-  }
+  const base = ["efectivo", "tarjeta", "transferencia"];
+  const mapa = new Map(metodos.map((m) => [m.nombre, m]));
+  const lista = [
+    ...base.map(
+      (nombre) =>
+        mapa.get(nombre) ?? { nombre, total: 0, cantidad: 0 },
+    ),
+    ...metodos.filter((m) => !base.includes(m.nombre)),
+  ];
   return (
     <ul className="space-y-4">
-      {metodos.map((m) => (
+      {lista.map((m) => (
         <li key={m.nombre}>
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="font-medium">{pagoLabel(m.nombre)}</span>
@@ -208,6 +216,7 @@ export function DashboardPage() {
   const [resumen, setResumen] = useState<ResumenVentas | null>(null);
   const [cargandoResumen, setCargandoResumen] = useState(false);
   const [error, setError] = useState("");
+  const [verTodasAlertas, setVerTodasAlertas] = useState(false);
 
   const rangoActual = useMemo(() => rango(periodo), [periodo]);
   const periodoLabel =
@@ -244,6 +253,15 @@ export function DashboardPage() {
   }, [rangoActual.desde, rangoActual.hasta, verVentas]);
 
   const serie = useMemo(() => (resumen?.serie ?? []).slice(-30), [resumen]);
+  const alertasVisibles = useMemo(
+    () =>
+      data
+        ? verTodasAlertas
+          ? data.productos_alerta
+          : data.productos_alerta.slice(0, LIMITE_ALERTAS)
+        : [],
+    [data, verTodasAlertas],
+  );
 
   const [ahora, setAhora] = useState(() => new Date());
   useEffect(() => {
@@ -279,12 +297,7 @@ export function DashboardPage() {
         description="Vista consolidada de ventas, actividad y alertas del negocio. Cambia el periodo para analizar otros rangos."
         icon={BarChart3}
         badge={`${periodoLabel} · ${rangoTexto}`}
-      >
-        <div className="text-left sm:text-right">
-          <p className="text-sm font-semibold">{fechaLarga}</p>
-          <p className="mt-0.5 text-xs font-medium text-on-accent/75">{hora12}</p>
-        </div>
-      </PageHero>
+      />
 
       {/* Filtros y accesos */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -313,6 +326,9 @@ export function DashboardPage() {
           </span>
         )}
         <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 hidden text-xs text-fg-muted sm:inline">
+            {fechaLarga} · {hora12}
+          </span>
           {cargandoResumen && verVentas ? (
             <span className="text-xs text-fg-muted">Actualizando…</span>
           ) : null}
@@ -402,7 +418,7 @@ export function DashboardPage() {
       {/* Últimas ventas y alertas */}
       <div
         className={cn(
-          "mt-5 grid items-start gap-5",
+          "mt-5 grid gap-5",
           verVentas && "lg:grid-cols-2",
         )}
       >
@@ -443,11 +459,14 @@ export function DashboardPage() {
           </Card>
         ) : null}
 
-        <Card className="overflow-hidden">
+        <Card className="flex h-full flex-col overflow-hidden">
           <div className="flex items-center justify-between bg-surface-2 px-5 py-4">
             <h2 className="card-title flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-warn" />
               Alertas de stock
+              {data && data.stock_bajo > 0 ? (
+                <Badge tone="warn">{data.stock_bajo}</Badge>
+              ) : null}
             </h2>
             {!isCaja ? (
               <Link
@@ -462,28 +481,57 @@ export function DashboardPage() {
           {!data ? (
             <p className="empty-state">Cargando…</p>
           ) : data.productos_alerta.length === 0 ? (
-            <p className="empty-state">
-              Todo el inventario está por encima del mínimo.
-            </p>
+            <p className="empty-state">No hay productos activos en el inventario.</p>
           ) : (
-            <ul className="space-y-1 p-2">
-              {data.productos_alerta.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex items-center justify-between gap-3 rounded-lg px-3 py-3 hover:bg-hover"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{p.nombre}</p>
-                    <p className="truncate text-xs text-fg-muted">
-                      {p.marca} · {p.medida}
-                    </p>
-                  </div>
-                  <Badge tone="warn">
-                    {p.stock} / {p.stock_minimo}
-                  </Badge>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="divide-y divide-border">
+                {alertasVisibles.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-hover"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-2 text-fg-faint">
+                      {p.imagen ? (
+                        <img
+                          src={p.imagen}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Package className="h-5 w-5" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{p.nombre}</p>
+                      <p className="truncate text-xs text-fg-muted">
+                        {p.marca} · {p.medida}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <Badge tone={p.stock <= p.stock_minimo ? "warn" : "default"}>
+                        {p.stock} / {p.stock_minimo}
+                      </Badge>
+                      <p className="mt-1 text-[10px] text-fg-faint">
+                        {p.stock <= p.stock_minimo ? "Reponer" : "Disponible"}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {data.productos_alerta.length > LIMITE_ALERTAS ? (
+                <div className="mt-auto flex justify-end border-t border-border px-4 py-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setVerTodasAlertas((v) => !v)}
+                  >
+                    {verTodasAlertas
+                      ? "Ver menos"
+                      : `Ver más (${data.productos_alerta.length - LIMITE_ALERTAS})`}
+                  </Button>
+                </div>
+              ) : null}
+            </>
           )}
         </Card>
       </div>

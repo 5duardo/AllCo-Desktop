@@ -3,7 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
-import { Download, AppWindow, Palette, Printer, RefreshCw, Save, Settings, Store, Trash2, Upload } from "lucide-react";
+import { Download, AppWindow, Calculator, Palette, Printer, RefreshCw, Save, Settings, Store, Trash2, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import { guardarMinimizarAlCerrar, leerMinimizarAlCerrar } from "@/lib/window";
 import { useToast } from "@/context/ToastContext";
@@ -14,7 +14,8 @@ import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
-import { Input, Label, Textarea } from "@/components/ui/input";
+import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 
 export function ConfigPage() {
   const toast = useToast();
@@ -191,29 +192,50 @@ export function ConfigPage() {
   const vistaTicket = (() => {
     if (!cfg) return "";
     const ver = (v: string) => v === "1";
-    const lineas = [cfg.negocio_nombre];
+    const ancho = cfg.ticket_ancho === "80" ? 48 : 32;
+    const [cantW, descW, totalW] = ancho >= 48 ? [5, 30, 12] : [4, 18, 9];
+    const centrar = (texto: string) => {
+      const t = texto.trim();
+      return t.length >= ancho
+        ? t.slice(0, ancho)
+        : " ".repeat(Math.floor((ancho - t.length) / 2)) + t;
+    };
+    const monto = (n: number) =>
+      n.toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fila = (cant: number, desc: string, importe: number) =>
+      `${String(cant).padEnd(cantW)} ${desc.slice(0, descW).padEnd(descW)}${monto(importe).padStart(totalW)}`.trimEnd();
+    const total = (etiqueta: string, valor: number) =>
+      `${etiqueta.padEnd(ancho - totalW)}${monto(valor).padStart(totalW)}`;
+    const sep = "-".repeat(ancho);
+    const sepFuerte = "=".repeat(ancho);
+    const lineas: string[] = [];
+
+    lineas.push(centrar(cfg.negocio_nombre));
     if (ver(cfg.ticket_mostrar_direccion) && cfg.negocio_direccion.trim()) {
-      lineas.push(cfg.negocio_direccion);
+      cfg.negocio_direccion.split("\n").forEach((l) => lineas.push(centrar(l)));
     }
     cfg.ticket_encabezado.split("\n").forEach((l) => {
-      if (l.trim()) lineas.push(l);
+      if (l.trim()) lineas.push(centrar(l));
     });
-    lineas.push("--------------------------------", "Factura #12");
+    lineas.push(sep, "Factura #12");
     if (ver(cfg.ticket_mostrar_fecha)) lineas.push("21/11/2026 10:30:00");
     if (ver(cfg.ticket_mostrar_cajero)) lineas.push("Cajero: Administrador");
     if (ver(cfg.ticket_mostrar_cliente)) lineas.push("Cliente: Cliente de ejemplo 1");
+    lineas.push(sep);
     lineas.push(
-      "--------------------------------",
-      "2 x Llanta 195/65R15   L 2,400.00",
-      "1 x Lavado básico      L 250.00",
-      "--------------------------------",
-      "TOTAL                  L 2,650.00",
+      `${"CANT".padEnd(cantW)} ${"DESCRIPCION".padEnd(descW)}${"TOTAL".padStart(totalW)}`.trimEnd(),
     );
+    lineas.push(fila(2, "Llanta 195/65R15", 2400), fila(1, "Lavado básico", 250));
+    lineas.push(sep, total("SUBTOTAL", 2650), sepFuerte);
+    lineas.push(total("TOTAL", 2650), sepFuerte);
     if (ver(cfg.ticket_mostrar_pago)) lineas.push("Pago: efectivo");
     if (ver(cfg.ticket_mostrar_recibido)) {
-      lineas.push("Recibido               L 3,000.00", "Cambio                 L 350.00");
+      lineas.push(total("Recibido", 3000), total("Cambio", 350));
     }
-    lineas.push("--------------------------------", cfg.ticket_pie);
+    lineas.push(sep);
+    cfg.ticket_pie.split("\n").forEach((l) => {
+      if (l.trim()) lineas.push(centrar(l));
+    });
     return lineas.join("\n");
   })();
 
@@ -449,6 +471,19 @@ export function ConfigPage() {
           <form onSubmit={save} className="mt-5 grid gap-6 lg:grid-cols-2">
             <div className="space-y-4">
               <div>
+                <Label>Ancho de papel</Label>
+                <Select
+                  value={cfg.ticket_ancho}
+                  onChange={(e) => setCfg({ ...cfg, ticket_ancho: e.target.value })}
+                >
+                  <option value="58">58 mm · 32 caracteres</option>
+                  <option value="80">80 mm · 48 caracteres</option>
+                </Select>
+                <p className="mt-1 text-xs text-fg-muted">
+                  Ajusta las columnas del ticket y el logo al ancho de la impresora térmica.
+                </p>
+              </div>
+              <div>
                 <Label>Encabezado adicional</Label>
                 <Textarea
                   value={cfg.ticket_encabezado}
@@ -497,13 +532,112 @@ export function ConfigPage() {
             </div>
             <div>
               <p className="section-title mb-2">Vista previa del ticket</p>
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-2xl bg-[#111214] p-4 font-mono text-xs leading-relaxed text-[#d6d9de]">
-                {vistaTicket}
-              </pre>
+              <div className="rounded-2xl bg-[#111214] p-4">
+                {cfg.negocio_logo ? (
+                  <img
+                    src={cfg.negocio_logo}
+                    alt=""
+                    className="mx-auto mb-3 h-16 w-16 object-contain"
+                  />
+                ) : null}
+                <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-[#d6d9de]">
+                  {vistaTicket}
+                </pre>
+              </div>
               <p className="mt-2 text-xs text-fg-muted">
                 Los cambios aplican a las facturas nuevas al cobrar. Las reimpresiones usan el ticket
                 guardado original.
               </p>
+            </div>
+          </form>
+        ) : (
+          <p className="mt-4 text-sm text-fg-muted">Cargando configuración…</p>
+        )}
+      </Card>
+
+      <Card className="mt-5 p-6">
+        <div className="flex items-start gap-3">
+          <span className="icon-chip">
+            <Calculator className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="card-title">Datos fiscales (Talonarios)</h2>
+            <p className="mt-1 text-sm text-fg-muted">
+              Se incluyen en el reporte mensual de talonarios para la declaración.
+            </p>
+          </div>
+        </div>
+
+        {cfg ? (
+          <form onSubmit={save} className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label>RTN del negocio</Label>
+              <Input
+                value={cfg.fiscal_rtn}
+                onChange={(e) => setCfg({ ...cfg, fiscal_rtn: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>CAI</Label>
+              <Input
+                value={cfg.fiscal_cai}
+                onChange={(e) => setCfg({ ...cfg, fiscal_cai: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Rango autorizado · desde</Label>
+              <Input
+                value={cfg.fiscal_rango_desde}
+                onChange={(e) => setCfg({ ...cfg, fiscal_rango_desde: e.target.value })}
+                placeholder="000-001-01-00000001"
+                className="font-mono"
+              />
+            </div>
+            <div>
+              <Label>Rango autorizado · hasta</Label>
+              <Input
+                value={cfg.fiscal_rango_hasta}
+                onChange={(e) => setCfg({ ...cfg, fiscal_rango_hasta: e.target.value })}
+                placeholder="000-001-01-00000500"
+                className="font-mono"
+              />
+            </div>
+            <div>
+              <Label>Fecha límite de emisión</Label>
+              <DatePicker
+                value={cfg.fiscal_fecha_limite}
+                onChange={(v) => setCfg({ ...cfg, fiscal_fecha_limite: v })}
+              />
+            </div>
+            <div>
+              <Label>ISV (%)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={cfg.fiscal_isv}
+                onChange={(e) => setCfg({ ...cfg, fiscal_isv: e.target.value })}
+              />
+            </div>
+            <label className="flex cursor-pointer items-center gap-2 text-sm sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={cfg.fiscal_precios_con_isv === "1"}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    fiscal_precios_con_isv: e.target.checked ? "1" : "0",
+                  })
+                }
+              />
+              Los precios de venta incluyen ISV (se desglosa en el reporte)
+            </label>
+            <div className="flex justify-end sm:col-span-2">
+              <Button type="submit">
+                <Save className="h-4 w-4" />
+                Guardar datos fiscales
+              </Button>
             </div>
           </form>
         ) : (

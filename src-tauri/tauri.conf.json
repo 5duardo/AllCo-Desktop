@@ -29,7 +29,7 @@
         "minimizable": false,
         "decorations": false,
         "center": true,
-        "visible": true,
+        "visible": false,
         "focus": true,
         "alwaysOnTop": true,
         "skipTaskbar": true

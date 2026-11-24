@@ -1,7 +1,7 @@
-use crate::commands::auth::{require_roles, require_user};
+use crate::commands::auth::{require_dev, require_roles, require_user};
 use crate::db;
 use crate::models::{
-    AlertaSistema, ConfigApp, EventoSistema, LoginHoy, MarcaNegocio, StatusSistema,
+    AlertaSistema, ConfigApp, EventoSistema, Licencia, LoginHoy, MarcaNegocio, StatusSistema,
     UsuarioIn, UsuarioPublico,
 };
 use crate::AppState;
@@ -92,7 +92,8 @@ pub fn guardar_usuario(state: State<AppState>, data: UsuarioIn) -> Result<i64, S
                 }
                 let hash = bcrypt::hash(&pw, db::BCRYPT_COST).map_err(|e| e.to_string())?;
                 conn.execute(
-                    "UPDATE usuarios SET password_hash = ?1 WHERE id = ?2",
+                    "UPDATE usuarios SET password_hash = ?1, intentos_fallidos = 0, bloqueado_hasta = NULL
+                     WHERE id = ?2",
                     params![hash, id],
                 )
                 .map_err(|e| e.to_string())?;
@@ -143,6 +144,50 @@ pub fn guardar_config(state: State<AppState>, data: ConfigApp) -> Result<(), Str
     require_roles(&state, &["admin"])?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     db::save_config(&conn, &data)
+}
+
+#[tauri::command]
+pub fn obtener_licencia(state: State<AppState>) -> Result<Licencia, String> {
+    require_user(&state)?;
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    db::licencia(&conn)
+}
+
+#[tauri::command]
+pub fn guardar_licencia(state: State<AppState>, data: Licencia) -> Result<(), String> {
+    let user = require_dev(&state)?;
+    if data.expira.trim().is_empty() {
+        return Err("Indique la fecha de expiración de la licencia.".into());
+    }
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    db::save_licencia(&conn, &data)?;
+    let _ = db::log_event(
+        &conn,
+        "licencia",
+        Some(user.id),
+        &format!("Licencia actualizada. Vence: {}", data.expira),
+        None,
+    );
+    Ok(())
+}
+
+#[tauri::command]
+pub fn guardar_reporte_fiscal(
+    state: State<AppState>,
+    ruta: String,
+    contenido: String,
+) -> Result<(), String> {
+    require_roles(&state, &["admin"])?;
+    let destino = std::path::PathBuf::from(ruta);
+    let es_csv = destino
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("csv"))
+        .unwrap_or(false);
+    if !es_csv {
+        return Err("El reporte debe guardarse como archivo CSV.".into());
+    }
+    std::fs::write(&destino, contenido).map_err(|e| e.to_string())
 }
 
 /// Marca visible para todos los roles: nombre y logo del negocio.

@@ -142,6 +142,7 @@ pub struct VentaListado {
     pub metodo_pago: String,
     pub estado: String,
     pub items: i64,
+    pub cliente_nombre: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -287,12 +288,49 @@ pub struct ConfigApp {
     pub ticket_mostrar_pago: String,
     #[serde(default)]
     pub ticket_mostrar_recibido: String,
+    #[serde(default = "ancho_ticket_default")]
+    pub ticket_ancho: String,
+    #[serde(default)]
+    pub fiscal_rtn: String,
+    #[serde(default)]
+    pub fiscal_cai: String,
+    #[serde(default)]
+    pub fiscal_rango_desde: String,
+    #[serde(default)]
+    pub fiscal_rango_hasta: String,
+    #[serde(default)]
+    pub fiscal_fecha_limite: String,
+    #[serde(default = "fiscal_isv_default")]
+    pub fiscal_isv: String,
+    #[serde(default = "fiscal_si_default")]
+    pub fiscal_precios_con_isv: String,
+}
+
+fn fiscal_isv_default() -> String {
+    "15".into()
+}
+
+fn fiscal_si_default() -> String {
+    "1".into()
+}
+
+fn ancho_ticket_default() -> String {
+    "58".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarcaNegocio {
     pub nombre: String,
     pub logo: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Licencia {
+    pub titular: String,
+    pub plan: String,
+    pub inicio: String,
+    pub expira: String,
+    pub notas: String,
 }
 
 #[derive(Debug, Deserialize)]

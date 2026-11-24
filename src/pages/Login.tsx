@@ -17,8 +17,23 @@ import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeControls";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { rolLabel } from "@/lib/format";
 import type { Usuario } from "@/lib/types";
+
+function esperaTexto(segundos: number) {
+  if (segundos >= 3600) {
+    const h = Math.floor(segundos / 3600);
+    const m = Math.ceil((segundos % 3600) / 60);
+    return m > 0 ? `${h} h ${m} min` : `${h} h`;
+  }
+  if (segundos >= 60) {
+    const m = Math.floor(segundos / 60);
+    const s = segundos % 60;
+    return s > 0 ? `${m} min ${s} s` : `${m} min`;
+  }
+  return `${segundos} s`;
+}
 
 const FEATURES = [
   {
@@ -46,6 +61,13 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [verPassword, setVerPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [master, setMaster] = useState("");
+  const [nueva, setNueva] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [bloqueo, setBloqueo] = useState(0);
+  const bloqueado = bloqueo > 0;
 
   useEffect(() => {
     api
@@ -60,6 +82,29 @@ export function LoginPage() {
       .catch((e) => toast.error(`No se pudo cargar la lista de usuarios: ${e}`));
   }, []);
 
+  useEffect(() => {
+    setBloqueo(0);
+    if (!usuario) return;
+    let vigente = true;
+    api
+      .estadoLogin(usuario)
+      .then((segundos) => {
+        if (vigente) setBloqueo(segundos);
+      })
+      .catch(() => {});
+    return () => {
+      vigente = false;
+    };
+  }, [usuario]);
+
+  useEffect(() => {
+    if (!bloqueado) return;
+    const timer = window.setInterval(() => {
+      setBloqueo((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [bloqueado]);
+
   function abrirSitio() {
     openUrl("https://allco.online/").catch(() => {
       window.open("https://allco.online/", "_blank", "noopener");
@@ -68,6 +113,7 @@ export function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (bloqueado) return;
     if (!usuario) {
       toast.error("Seleccione un usuario.");
       return;
@@ -77,26 +123,78 @@ export function LoginPage() {
       await login(usuario, password);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
+      try {
+        const segundos = await api.estadoLogin(usuario);
+        if (segundos > 0) setBloqueo(segundos);
+      } catch {
+        // Si no se puede consultar, el backend igual bloquea.
+      }
     } finally {
       setLoading(false);
     }
   }
 
+  const seleccionado = usuarios.find((u) => u.usuario === usuario);
+  const etiquetaUsuario = seleccionado?.nombre ?? usuario;
+
+  function abrirReset() {
+    setMaster("");
+    setNueva("");
+    setConfirmar("");
+    setResetOpen(true);
+  }
+
+  async function restablecer() {
+    if (!usuario) {
+      toast.error("Seleccione el usuario que necesita el cambio.");
+      return;
+    }
+    if (!master.trim()) {
+      toast.error("Ingrese la contraseña maestra de soporte.");
+      return;
+    }
+    if (nueva.trim().length < 6) {
+      toast.error("La nueva contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    if (nueva !== confirmar) {
+      toast.error("Las contraseñas no coinciden.");
+      return;
+    }
+    setResetting(true);
+    try {
+      await api.restablecerPassword(usuario, master.trim(), nueva.trim());
+      toast.ok(`Contraseña de ${etiquetaUsuario} restablecida.`);
+      setResetOpen(false);
+      setMaster("");
+      setNueva("");
+      setConfirmar("");
+      setPassword("");
+      setBloqueo(0);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setResetting(false);
+    }
+  }
+
   return (
-    <div className="relative flex h-full items-center justify-center overflow-y-auto bg-sidebar p-5 sm:p-8">
-      <img
-        src="/login-bg.webp"
-        alt=""
-        aria-hidden
-        className="absolute inset-0 h-full w-full scale-105 object-cover blur-[3px] brightness-[0.5]"
-      />
+    <div className="relative flex h-full items-center justify-center overflow-hidden bg-sidebar p-5 sm:p-8">
+      <div className="absolute inset-0 overflow-hidden">
+        <img
+          src="/login-bg.webp"
+          alt=""
+          aria-hidden
+          className="h-full w-full scale-105 object-cover blur-[3px] brightness-[0.5]"
+        />
+      </div>
       <div className="absolute right-4 top-4 z-10">
         <ThemeToggle className="border border-border bg-surface text-fg hover:bg-hover" />
       </div>
 
-      <div className="relative grid w-full max-w-5xl md:min-h-[610px] md:grid-cols-[1.08fr_0.92fr]">
+      <div className="relative grid w-full max-w-5xl md:min-h-[560px] md:grid-cols-[1.08fr_0.92fr]">
         {/* Panel de marca */}
-        <div className="relative hidden flex-col justify-between overflow-hidden rounded-l-3xl bg-sidebar p-9 text-sidebar-fg md:flex">
+        <div className="relative hidden flex-col justify-between overflow-hidden rounded-l-3xl bg-sidebar p-8 text-sidebar-fg md:flex">
           <div className="relative flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Logo framed={false} className="h-11 w-11" />
@@ -106,7 +204,7 @@ export function LoginPage() {
             </div>
           </div>
 
-          <div className="relative my-8 max-w-sm">
+          <div className="relative my-6 max-w-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-accent">
               ALLCO
             </p>
@@ -119,7 +217,7 @@ export function LoginPage() {
               Inventario, ventas y caja en un solo sistema. Sin depender de internet.
             </p>
 
-            <ul className="mt-8 space-y-2.5">
+            <ul className="mt-6 space-y-2">
               {FEATURES.map((f) => (
                 <li
                   key={f.title}
@@ -227,16 +325,35 @@ export function LoginPage() {
                   {verPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              <div className="mt-1.5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={abrirReset}
+                  className="text-xs font-semibold text-accent-fg outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                >
+                  ¿Olvidaste la contraseña?
+                </button>
+              </div>
+              {bloqueado ? (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="mt-2 flex items-center gap-1.5 rounded-lg bg-danger-soft px-3 py-2 text-xs font-medium text-danger-fg"
+                >
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  Demasiados intentos. Intenta de nuevo en {esperaTexto(bloqueo)}.
+                </p>
+              ) : null}
             </div>
 
             <Button
               type="submit"
               className="w-full"
               size="lg"
-              disabled={loading || usuarios.length === 0}
+              disabled={loading || usuarios.length === 0 || bloqueado}
             >
               <LogIn className="h-4 w-4" />
-              {loading ? "Entrando…" : "Entrar"}
+              {bloqueado ? `Espera ${esperaTexto(bloqueo)}` : loading ? "Entrando…" : "Entrar"}
             </Button>
           </form>
 
@@ -248,6 +365,67 @@ export function LoginPage() {
           </p>
         </div>
       </div>
+
+      <Modal
+        open={resetOpen}
+        title="Restablecer contraseña"
+        subtitle={usuario ? `Usuario: ${etiquetaUsuario}` : undefined}
+        onClose={() => setResetOpen(false)}
+        small
+      >
+        <p className="text-sm text-fg-muted">
+          Solo el equipo de soporte de AllCo puede hacer este cambio. Ingrese la
+          contraseña maestra y defina la nueva contraseña del usuario.
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void restablecer();
+          }}
+          className="mt-4 space-y-4"
+        >
+          <div>
+            <Label>Contraseña maestra de soporte</Label>
+            <Input
+              type="password"
+              autoComplete="off"
+              value={master}
+              onChange={(e) => setMaster(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div>
+            <Label>Nueva contraseña</Label>
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={nueva}
+              onChange={(e) => setNueva(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Confirmar nueva contraseña</Label>
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={confirmar}
+              onChange={(e) => setConfirmar(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setResetOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={resetting}>
+              {resetting ? "Restableciendo…" : "Restablecer contraseña"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

@@ -18,6 +18,7 @@ fn venta_row(r: &rusqlite::Row) -> rusqlite::Result<VentaListado> {
         metodo_pago: r.get(5)?,
         estado: r.get(6)?,
         items: r.get(7)?,
+        cliente_nombre: r.get(8)?,
     })
 }
 
@@ -78,8 +79,9 @@ pub fn dashboard(state: State<AppState>) -> Result<DashboardData, String> {
         let mut stmt = conn
             .prepare(
                 "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
-                        (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id)
+                        (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
                  FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
+                 LEFT JOIN clientes c ON c.id = v.cliente_id
                  ORDER BY v.id DESC LIMIT 8",
             )
             .map_err(|e| e.to_string())?;
@@ -91,7 +93,10 @@ pub fn dashboard(state: State<AppState>) -> Result<DashboardData, String> {
     }
 
     let sql = format!(
-        "{PRODUCTO_SELECT} WHERE p.activo = 1 AND p.stock <= p.stock_minimo ORDER BY p.stock ASC LIMIT 8"
+        "{PRODUCTO_SELECT} WHERE p.activo = 1
+         ORDER BY CASE WHEN p.stock <= p.stock_minimo THEN 0 ELSE 1 END,
+                  p.stock ASC, p.nombre ASC
+         LIMIT 8"
     );
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let show_cost = user.rol == "admin";
@@ -224,8 +229,9 @@ pub fn reporte_ventas(
     let mut stmt = conn
         .prepare(
             "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
-                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id)
+                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
              FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
+             LEFT JOIN clientes c ON c.id = v.cliente_id
              WHERE date(v.fecha) >= date(?1) AND date(v.fecha) <= date(?2)
              ORDER BY v.id DESC LIMIT 200",
         )
