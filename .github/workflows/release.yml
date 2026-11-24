@@ -28,9 +28,6 @@ jobs:
           - os: windows-latest
             bundles: nsis,msi
             label: windows
-          - os: macos-latest
-            bundles: app,dmg
-            label: macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -81,8 +78,6 @@ jobs:
           path: |
             src-tauri/target/release/bundle/nsis/*
             src-tauri/target/release/bundle/msi/*
-            src-tauri/target/release/bundle/macos/*
-            src-tauri/target/release/bundle/dmg/*
           if-no-files-found: error
 
   release:
@@ -133,19 +128,11 @@ jobs:
           Instaladores de AllCo ${TAG}.
 
           **Windows:** ejecuta el instalador \`.exe\` (NSIS) o \`.msi\`.
-
-          **macOS (Apple Silicon):** abre el \`.dmg\` y arrastra AllCo a Aplicaciones. Si macOS muestra
-          "AllCo está dañado", abre Terminal y ejecuta:
-
-              xattr -cr /Applications/AllCo.app
-
-          Para publicar sin ese aviso hace falta firmar y notarizar la app con un certificado de
-          Apple Developer.
           EOF
 
           gh release delete "$TAG" --yes || true
 
-          mapfile -t assets < <(find artifacts -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.sig' \) | sort)
+          mapfile -t assets < <(find artifacts -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.sig' \) | sort)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "No se encontraron instaladores para publicar" >&2
             exit 1
