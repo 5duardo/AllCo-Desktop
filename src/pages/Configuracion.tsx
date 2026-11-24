@@ -17,9 +17,20 @@ import { Badge, Card } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 
+const CONFIG_TABS = [
+  { id: "marca", label: "Marca", icon: Store },
+  { id: "apariencia", label: "Apariencia", icon: Palette },
+  { id: "factura", label: "Factura", icon: Printer },
+  { id: "fiscal", label: "Fiscal", icon: Calculator },
+  { id: "sistema", label: "Sistema", icon: AppWindow },
+] as const;
+
+type ConfigTab = (typeof CONFIG_TABS)[number]["id"];
+
 export function ConfigPage() {
   const toast = useToast();
   const [cfg, setCfg] = useState<ConfigApp | null>(null);
+  const [tab, setTab] = useState<ConfigTab>("marca");
 
   const [version, setVersion] = useState("");
   const [checking, setChecking] = useState(false);
@@ -168,6 +179,7 @@ export function ConfigPage() {
   const nombreMarca = cfg?.negocio_nombre.trim() || "AllCo";
 
   type TicketFlag =
+    | "ticket_mostrar_logo"
     | "ticket_mostrar_direccion"
     | "ticket_mostrar_fecha"
     | "ticket_mostrar_cajero"
@@ -176,6 +188,7 @@ export function ConfigPage() {
     | "ticket_mostrar_recibido";
 
   const elementosTicket: { key: TicketFlag; label: string }[] = [
+    { key: "ticket_mostrar_logo", label: "Logo en la factura" },
     { key: "ticket_mostrar_direccion", label: "Dirección del negocio" },
     { key: "ticket_mostrar_fecha", label: "Fecha y hora" },
     { key: "ticket_mostrar_cajero", label: "Nombre del cajero" },
@@ -193,17 +206,48 @@ export function ConfigPage() {
     if (!cfg) return "";
     const ver = (v: string) => v === "1";
     const ancho = cfg.ticket_ancho === "80" ? 48 : 32;
-    const [cantW, descW, totalW] = ancho >= 48 ? [5, 30, 12] : [4, 18, 9];
+    const totalW = ancho >= 48 ? 12 : 9;
+    const descW = ancho - totalW - 1;
     const centrar = (texto: string) => {
       const t = texto.trim();
       return t.length >= ancho
         ? t.slice(0, ancho)
         : " ".repeat(Math.floor((ancho - t.length) / 2)) + t;
     };
+    const envolver = (texto: string, max: number) => {
+      const palabras = texto.split(/\s+/).filter(Boolean);
+      const lineas: string[] = [];
+      let actual = "";
+      for (const palabra of palabras) {
+        if (!actual) actual = palabra;
+        else if (actual.length + 1 + palabra.length <= max) actual += ` ${palabra}`;
+        else {
+          lineas.push(actual);
+          actual = palabra;
+        }
+      }
+      if (actual) lineas.push(actual);
+      const salida: string[] = [];
+      for (const linea of lineas) {
+        let resto = linea;
+        while (resto.length > max) {
+          salida.push(resto.slice(0, max));
+          resto = resto.slice(max).trimStart();
+        }
+        salida.push(resto);
+      }
+      return salida.length ? salida : [""];
+    };
     const monto = (n: number) =>
       n.toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const fila = (cant: number, desc: string, importe: number) =>
-      `${String(cant).padEnd(cantW)} ${desc.slice(0, descW).padEnd(descW)}${monto(importe).padStart(totalW)}`.trimEnd();
+    const fila = (cant: number, desc: string, importe: number) => {
+      const partes = envolver(`${cant} x ${desc}`, descW);
+      const primera = partes.shift() ?? "";
+      return [
+        `${primera.padEnd(descW)} ${monto(importe).padStart(totalW)}`.trimEnd(),
+        ...partes,
+      ].join("\n");
+    };
     const total = (etiqueta: string, valor: number) =>
       `${etiqueta.padEnd(ancho - totalW)}${monto(valor).padStart(totalW)}`;
     const sep = "-".repeat(ancho);
@@ -223,7 +267,7 @@ export function ConfigPage() {
     if (ver(cfg.ticket_mostrar_cliente)) lineas.push("Cliente: Cliente de ejemplo 1");
     lineas.push(sep);
     lineas.push(
-      `${"CANT".padEnd(cantW)} ${"DESCRIPCION".padEnd(descW)}${"TOTAL".padStart(totalW)}`.trimEnd(),
+      `${"DESCRIPCION".padEnd(descW)} ${"TOTAL".padStart(totalW)}`.trimEnd(),
     );
     lineas.push(fila(2, "Llanta 195/65R15", 2400), fila(1, "Lavado básico", 250));
     lineas.push(sep, total("SUBTOTAL", 2650), sepFuerte);
@@ -243,15 +287,37 @@ export function ConfigPage() {
     <div className="page">
       <PageHero
         title="Configuración"
-        subtitle="Marca del negocio, apariencia, ventana y actualizaciones"
-        description="Ajusta el logo y nombre del negocio, el tema visual, el comportamiento de la ventana y la búsqueda de actualizaciones."
+        subtitle="Marca, apariencia, factura y sistema"
+        description="Organiza la configuración del negocio, la factura, la apariencia y las opciones de la app."
         icon={Settings}
         badge="Ajustes"
       />
 
-      <div className="grid items-stretch gap-5 xl:grid-cols-2">
-        {cfg ? (
-          <Card className="flex h-full flex-col p-6">
+      <div
+        className="seg mb-5 flex-wrap"
+        role="group"
+        aria-label="Secciones de configuración"
+      >
+        {CONFIG_TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={`seg-item ${tab === t.id ? "seg-item-active" : ""}`}
+            >
+              <Icon className="h-4 w-4" />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === "marca" ? (
+        cfg ? (
+          <Card className="max-w-4xl p-6">
             <h2 className="card-title flex items-center gap-2">
               <Store className="h-4 w-4 text-accent-fg" />
               Marca del negocio
@@ -362,9 +428,11 @@ export function ConfigPage() {
           <Card className="p-6">
             <p className="text-sm text-fg-muted">Cargando configuración…</p>
           </Card>
-        )}
+        )
+      ) : null}
 
-        <Card className="flex h-full flex-col p-6">
+      {tab === "apariencia" ? (
+        <Card className="max-w-4xl p-6">
           <h2 className="card-title flex items-center gap-2">
             <Palette className="h-4 w-4 text-accent-fg" />
             Apariencia
@@ -396,27 +464,11 @@ export function ConfigPage() {
               Cambia la fuente de toda la aplicación.
             </p>
           </div>
-
-          <div className="mt-auto pt-6">
-            <p className="section-title mb-2">Vista previa</p>
-            <div className="rounded-xl bg-bg p-4">
-              <div className="rounded-xl bg-surface p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-fg">Total a cobrar</p>
-                  <Badge tone="accent">Factura #12</Badge>
-                </div>
-                <p className="mt-1 text-3xl font-bold tabular-nums text-fg">L 1,250.00</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button size="sm">Cobrar</Button>
-                  <Button size="sm" variant="secondary">Cancelar</Button>
-                </div>
-              </div>
-            </div>
-          </div>
         </Card>
-      </div>
+      ) : null}
 
-      <Card className="mt-5 p-6">
+      {tab === "sistema" ? (
+        <Card className="p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <span className="icon-chip">
@@ -450,16 +502,18 @@ export function ConfigPage() {
             }}
           />
         </label>
-      </Card>
+        </Card>
+      ) : null}
 
-      <Card className="mt-5 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="icon-chip">
-              <Printer className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="card-title">Elementos de la factura al imprimir</h2>
+      {tab === "factura" ? (
+        <Card className="p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="icon-chip">
+                <Printer className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="card-title">Elementos de la factura al imprimir</h2>
               <p className="mt-1 text-sm text-fg-muted">
                 Personalice el texto y elija qué datos aparecen en el ticket de caja.
               </p>
@@ -480,7 +534,7 @@ export function ConfigPage() {
                   <option value="80">80 mm · 48 caracteres</option>
                 </Select>
                 <p className="mt-1 text-xs text-fg-muted">
-                  Ajusta las columnas del ticket y el logo al ancho de la impresora térmica.
+                  Ajusta las columnas del ticket y el tamaño del logo para la impresora térmica.
                 </p>
               </div>
               <div>
@@ -532,13 +586,15 @@ export function ConfigPage() {
             </div>
             <div>
               <p className="section-title mb-2">Vista previa del ticket</p>
-              <div className="rounded-2xl bg-[#111214] p-4">
-                {cfg.negocio_logo ? (
-                  <img
-                    src={cfg.negocio_logo}
-                    alt=""
-                    className="mx-auto mb-3 h-16 w-16 object-contain"
-                  />
+              <div className="mx-auto w-fit max-w-full rounded-2xl bg-[#111214] p-4">
+                {cfg.negocio_logo && cfg.ticket_mostrar_logo === "1" ? (
+                  <div className="mb-3 flex justify-center">
+                    <img
+                      src={cfg.negocio_logo}
+                      alt=""
+                      className="h-16 w-16 object-contain"
+                    />
+                  </div>
                 ) : null}
                 <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-[#d6d9de]">
                   {vistaTicket}
@@ -553,15 +609,17 @@ export function ConfigPage() {
         ) : (
           <p className="mt-4 text-sm text-fg-muted">Cargando configuración…</p>
         )}
-      </Card>
+        </Card>
+      ) : null}
 
-      <Card className="mt-5 p-6">
-        <div className="flex items-start gap-3">
-          <span className="icon-chip">
-            <Calculator className="h-5 w-5" />
-          </span>
-          <div>
-            <h2 className="card-title">Datos fiscales (Talonarios)</h2>
+      {tab === "fiscal" ? (
+        <Card className="max-w-4xl p-6">
+          <div className="flex items-start gap-3">
+            <span className="icon-chip">
+              <Calculator className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="card-title">Datos fiscales (Talonarios)</h2>
             <p className="mt-1 text-sm text-fg-muted">
               Se incluyen en el reporte mensual de talonarios para la declaración.
             </p>
@@ -643,16 +701,18 @@ export function ConfigPage() {
         ) : (
           <p className="mt-4 text-sm text-fg-muted">Cargando configuración…</p>
         )}
-      </Card>
+        </Card>
+      ) : null}
 
-      <Card className="mt-5 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="icon-chip">
-              <Download className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="card-title">Actualizaciones</h2>
+      {tab === "sistema" ? (
+        <Card className="mt-5 p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="icon-chip">
+                <Download className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="card-title">Actualizaciones</h2>
               <p className="mt-1 text-sm text-fg-muted">
                 Busca, descarga e instala la última versión disponible.
               </p>
@@ -696,7 +756,8 @@ export function ConfigPage() {
         <p className="mt-4 text-xs text-fg-faint">
           Requiere conexión a internet. Si no hay una versión nueva, la app sigue funcionando sin cambios.
         </p>
-      </Card>
+        </Card>
+      ) : null}
 
       <p className="mt-6 text-center text-xs text-fg-faint">
         AllCo ·{" "}

@@ -222,6 +222,7 @@ export type ConfigApp = {
   ticket_mostrar_cliente: string;
   ticket_mostrar_pago: string;
   ticket_mostrar_recibido: string;
+  ticket_mostrar_logo: string;
   ticket_ancho: string;
   fiscal_rtn: string;
   fiscal_cai: string;
@@ -235,6 +236,7 @@ export type ConfigApp = {
 export type MarcaNegocio = {
   nombre: string;
   logo: string | null;
+  mostrar_logo_factura: boolean;
 };
 
 export type Licencia = {

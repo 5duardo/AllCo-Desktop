@@ -69,7 +69,7 @@ export function FacturacionPage() {
     void cargar();
     api
       .marcaNegocio()
-      .then((m) => setLogoNegocio(m.logo))
+      .then((m) => setLogoNegocio(m.mostrar_logo_factura ? m.logo : null))
       .catch(() => {});
   }, []);
 
@@ -305,11 +305,9 @@ export function FacturacionPage() {
         <div className="mx-auto w-fit max-w-full rounded-xl bg-surface-2 p-4">
           <div className="mx-auto w-fit max-w-full overflow-x-auto">
             {logoNegocio ? (
-              <img
-                src={logoNegocio}
-                alt=""
-                className="mx-auto mb-3 h-16 w-16 object-contain"
-              />
+              <div className="mb-3 flex justify-center">
+                <img src={logoNegocio} alt="" className="h-16 w-16 object-contain" />
+              </div>
             ) : null}
             <pre className="whitespace-pre font-mono text-xs text-fg">{ticketTexto}</pre>
           </div>

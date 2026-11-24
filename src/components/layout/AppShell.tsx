@@ -92,7 +92,7 @@ const NAV: {
   { to: "/reportes", label: "Reportes", icon: ChartBarIcon, iconSolid: ChartBarSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/talonarios", label: "Talonarios", icon: CalculatorIcon, iconSolid: CalculatorSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/usuarios", label: "Usuarios", icon: UsersIcon, iconSolid: UsersSolidIcon, group: "administracion", roles: ["admin"] },
-  { to: "/status", label: "Status de uso", icon: SignalIcon, iconSolid: SignalSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/status", label: "Registros", icon: SignalIcon, iconSolid: SignalSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/base-datos", label: "Base de datos", icon: CircleStackIcon, iconSolid: CircleStackSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/config", label: "Configuración", icon: Cog6ToothIcon, iconSolid: Cog6ToothSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/licencia", label: "Licencia", icon: KeyIcon, iconSolid: KeySolidIcon, group: "sistema", roles: ["admin", "caja", "bodega"] },

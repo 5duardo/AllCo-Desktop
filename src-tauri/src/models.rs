@@ -288,6 +288,8 @@ pub struct ConfigApp {
     pub ticket_mostrar_pago: String,
     #[serde(default)]
     pub ticket_mostrar_recibido: String,
+    #[serde(default = "ticket_si_default")]
+    pub ticket_mostrar_logo: String,
     #[serde(default = "ancho_ticket_default")]
     pub ticket_ancho: String,
     #[serde(default)]
@@ -318,10 +320,16 @@ fn ancho_ticket_default() -> String {
     "58".into()
 }
 
+fn ticket_si_default() -> String {
+    "1".into()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarcaNegocio {
     pub nombre: String,
     pub logo: Option<String>,
+    /// Si el logo también se imprime en la factura.
+    pub mostrar_logo_factura: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

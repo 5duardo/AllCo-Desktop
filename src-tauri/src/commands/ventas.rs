@@ -228,6 +228,48 @@ fn truncate(s: &str, max: usize) -> String {
     }
 }
 
+/// Divide un texto en líneas de `ancho` caracteres como máximo, cortando por
+/// palabras y partiendo solo las palabras que por sí solas no caben.
+fn envolver(texto: &str, ancho: usize) -> Vec<String> {
+    let ancho = ancho.max(1);
+    let mut lineas: Vec<String> = Vec::new();
+    let mut actual = String::new();
+    for palabra in texto.split_whitespace() {
+        let largo_actual = actual.chars().count();
+        let largo_palabra = palabra.chars().count();
+        if actual.is_empty() {
+            actual.push_str(palabra);
+        } else if largo_actual + 1 + largo_palabra <= ancho {
+            actual.push(' ');
+            actual.push_str(palabra);
+        } else {
+            lineas.push(std::mem::take(&mut actual));
+            actual.push_str(palabra);
+        }
+    }
+    if !actual.is_empty() {
+        lineas.push(actual);
+    }
+    let mut salida: Vec<String> = Vec::new();
+    for linea in lineas {
+        let mut resto = linea.as_str();
+        while resto.chars().count() > ancho {
+            let corte = resto
+                .char_indices()
+                .nth(ancho)
+                .map(|(i, _)| i)
+                .unwrap_or(resto.len());
+            salida.push(resto[..corte].to_string());
+            resto = resto[corte..].trim_start();
+        }
+        salida.push(resto.to_string());
+    }
+    if salida.is_empty() {
+        salida.push(String::new());
+    }
+    salida
+}
+
 fn centrar(texto: &str, ancho: usize) -> String {
     let texto = texto.trim();
     let largo = texto.chars().count();
@@ -269,7 +311,8 @@ fn build_ticket(
 ) -> String {
     let ver = |valor: &str| valor == "1";
     let ancho: usize = if cfg.ticket_ancho == "80" { 48 } else { 32 };
-    let (cant_w, desc_w, total_w) = if ancho >= 48 { (5, 30, 12) } else { (4, 18, 9) };
+    let total_w = if ancho >= 48 { 12 } else { 9 };
+    let desc_w = ancho.saturating_sub(total_w + 1);
     let label_w = ancho.saturating_sub(total_w);
     let sep = "-".repeat(ancho);
     let sep_fuerte = "=".repeat(ancho);
@@ -309,21 +352,19 @@ fn build_ticket(
     t.push_str(&sep);
     t.push('\n');
 
-    let encabezado = format!(
-        "{:<cant_w$} {:<desc_w$}{:>total_w$}",
-        "CANT", "DESCRIPCION", "TOTAL"
-    );
+    let encabezado = format!("{:<desc_w$} {:>total_w$}", "DESCRIPCION", "TOTAL");
     t.push_str(encabezado.trim_end());
     t.push('\n');
     for (cant, nombre, importe) in lineas {
-        let fila = format!(
-            "{:<cant_w$} {:<desc_w$}{:>total_w$}",
-            cant,
-            truncate(nombre, desc_w),
-            monto_ticket(*importe)
-        );
+        let mut partes = envolver(&format!("{cant} x {nombre}"), desc_w);
+        let primera = partes.remove(0);
+        let fila = format!("{:<desc_w$} {:>total_w$}", primera, monto_ticket(*importe));
         t.push_str(fila.trim_end());
         t.push('\n');
+        for parte in partes {
+            t.push_str(&parte);
+            t.push('\n');
+        }
     }
     t.push_str(&sep);
     t.push('\n');

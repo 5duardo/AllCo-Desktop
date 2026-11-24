@@ -42,7 +42,7 @@ export function StatusPage() {
   if (!data)
     return (
       <div className="page">
-        {error ? <Alert>{error}</Alert> : <p className="text-sm text-fg-muted">Cargando status…</p>}
+        {error ? <Alert>{error}</Alert> : <p className="text-sm text-fg-muted">Cargando registros…</p>}
       </div>
     );
 
@@ -61,9 +61,9 @@ export function StatusPage() {
   return (
     <div className="page">
       <PageHero
-        title="Status de uso del sistema"
-        subtitle="Salud de la instalación, actividad y periféricos. Solo administrador."
-        description="Revisa la salud técnica de la instalación, la actividad reciente y los periféricos conectados. La base de datos y los respaldos están en su propia página."
+        title="Registros del sistema"
+        subtitle="Registro de actividad, errores e impresión. Solo administrador."
+        description="Revisa la actividad reciente, los errores y el estado de los periféricos conectados. La base de datos y los respaldos están en su propia página."
         icon={Activity}
         badge="Sistema"
       />

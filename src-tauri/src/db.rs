@@ -485,6 +485,10 @@ pub fn config_map(conn: &Connection) -> Result<ConfigApp, String> {
             .get("ticket_mostrar_recibido")
             .cloned()
             .unwrap_or_else(|| "1".into()),
+        ticket_mostrar_logo: map
+            .get("ticket_mostrar_logo")
+            .cloned()
+            .unwrap_or_else(|| "1".into()),
         ticket_ancho: map
             .get("ticket_ancho")
             .cloned()
@@ -508,6 +512,7 @@ pub fn config_map(conn: &Connection) -> Result<ConfigApp, String> {
 pub fn marca_negocio(conn: &Connection) -> Result<MarcaNegocio, String> {
     let cfg = config_map(conn)?;
     Ok(MarcaNegocio {
+        mostrar_logo_factura: cfg.ticket_mostrar_logo == "1",
         nombre: cfg.negocio_nombre,
         logo: cfg.negocio_logo,
     })
@@ -569,6 +574,7 @@ pub fn save_config(conn: &Connection, cfg: &ConfigApp) -> Result<(), String> {
         ("ticket_mostrar_cliente", cfg.ticket_mostrar_cliente.as_str()),
         ("ticket_mostrar_pago", cfg.ticket_mostrar_pago.as_str()),
         ("ticket_mostrar_recibido", cfg.ticket_mostrar_recibido.as_str()),
+        ("ticket_mostrar_logo", cfg.ticket_mostrar_logo.as_str()),
         ("ticket_ancho", cfg.ticket_ancho.as_str()),
         ("fiscal_rtn", cfg.fiscal_rtn.as_str()),
         ("fiscal_cai", cfg.fiscal_cai.as_str()),

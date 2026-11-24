@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Banknote, Check, CheckCircle2, CreditCard, Landmark, LayoutGrid, List, Maximize2, Minimize2, Package, Printer, ReceiptText, Search, ShoppingCart, Trash2, UserPlus, Wrench, X } from "lucide-react";
+import { Banknote, CheckCircle2, CreditCard, Landmark, LayoutGrid, List, Maximize2, Minimize2, Package, Printer, ReceiptText, Search, ShoppingCart, Trash2, UserPlus, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useFullscreen } from "@/context/FullscreenContext";
@@ -8,7 +8,6 @@ import { lempiras } from "@/lib/format";
 import type { CartLine, Cliente, Producto, Servicio } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/alert";
-import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -47,12 +46,6 @@ export function PosPage() {
   const [impresion, setImpresion] = useState<{ ok: boolean; error: string | null } | null>(null);
   const [reimprimiendo, setReimprimiendo] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [agregado, setAgregado] = useState<{
-    nombre: string;
-    cantidad: number;
-    total: number;
-    imagen: string | null;
-  } | null>(null);
   const { pantallaCompleta, alternar: alternarPantallaCompleta } = useFullscreen();
   const [logoNegocio, setLogoNegocio] = useState<string | null>(null);
   const [vistaCatalogo, setVistaCatalogo] = useState<"grid" | "lista">(() =>
@@ -71,7 +64,7 @@ export function PosPage() {
   useEffect(() => {
     api
       .marcaNegocio()
-      .then((m) => setLogoNegocio(m.logo))
+      .then((m) => setLogoNegocio(m.mostrar_logo_factura ? m.logo : null))
       .catch(() => {});
   }, []);
 
@@ -181,13 +174,6 @@ export function PosPage() {
     cargarCatalogos().catch((e) => toast.error(String(e)));
   }, []);
 
-  // Aviso temporal al agregar un ítem; se cierra solo y no quita el foco al escáner.
-  useEffect(() => {
-    if (!agregado) return;
-    const t = window.setTimeout(() => setAgregado(null), 1400);
-    return () => window.clearTimeout(t);
-  }, [agregado]);
-
   const filtro = busqueda.trim().toLowerCase();
   const productosFiltrados = productos.filter(
     (p) =>
@@ -266,15 +252,6 @@ export function PosPage() {
         return copy;
       }
       return [...prev, line];
-    });
-    setAgregado({
-      nombre: line.nombre,
-      cantidad: nextQty,
-      total: line.precio_unitario * nextQty,
-      imagen:
-        line.tipo === "producto"
-          ? (productos.find((p) => p.id === line.referencia_id)?.imagen ?? null)
-          : null,
     });
   }
 
@@ -373,15 +350,6 @@ export function PosPage() {
       className="page flex h-full min-h-0 flex-col"
       style={pantallaCompleta ? { maxWidth: "none" } : undefined}
     >
-      {pantallaCompleta ? null : (
-        <PageHero
-          title="Punto de venta"
-          subtitle="Cobra productos y servicios y genera la factura."
-          description="Escanea el código de barras en cualquier parte de la pantalla, agrega servicios y registra el pago en efectivo, tarjeta o transferencia."
-          icon={ShoppingCart}
-          badge={cart.length > 0 ? `${cart.length} ítems` : "Punto de venta"}
-        />
-      )}
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <Card className="flex min-h-0 flex-col overflow-hidden">
           <div className="border-b border-border p-4">
@@ -863,11 +831,9 @@ export function PosPage() {
         <div className="mx-auto w-fit max-w-full rounded-xl bg-surface-2 p-4">
           <div className="mx-auto w-fit max-w-full overflow-x-auto">
             {logoNegocio ? (
-              <img
-                src={logoNegocio}
-                alt=""
-                className="mx-auto mb-3 h-16 w-16 object-contain"
-              />
+              <div className="mb-3 flex justify-center">
+                <img src={logoNegocio} alt="" className="h-16 w-16 object-contain" />
+              </div>
             ) : null}
             <pre className="whitespace-pre font-mono text-xs text-fg">{factura}</pre>
           </div>
@@ -965,44 +931,6 @@ export function PosPage() {
           </div>
         </form>
       </Modal>
-
-      {agregado ? (
-        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4">
-          <div
-            role="status"
-            className="anim-pop pointer-events-auto relative w-full max-w-xs rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-2xl"
-          >
-            <button
-              type="button"
-              onClick={() => setAgregado(null)}
-              aria-label="Cerrar"
-              className="absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-lg text-fg-faint outline-none transition-colors hover:bg-hover hover:text-fg focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            {agregado.imagen ? (
-              <div className="relative mx-auto h-20 w-20">
-                <img
-                  src={agregado.imagen}
-                  alt={agregado.nombre}
-                  className="h-20 w-20 rounded-xl border border-border object-cover"
-                />
-                <span className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-ok text-on-ok shadow-lg">
-                  <Check className="h-4 w-4" strokeWidth={3} />
-                </span>
-              </div>
-            ) : (
-              <CheckCircle2 className="mx-auto h-12 w-12 text-ok-fg" />
-            )}
-            <p className="mt-3 text-sm font-medium text-fg-muted">Agregado a la venta</p>
-            <p className="mt-1 text-lg font-bold text-fg">{agregado.nombre}</p>
-            <p className="mt-2 text-sm text-fg-muted">
-              {agregado.cantidad} en el ticket ·{" "}
-              <span className="font-semibold text-fg">{lempiras(agregado.total)}</span>
-            </p>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

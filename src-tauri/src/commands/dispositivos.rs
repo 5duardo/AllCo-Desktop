@@ -466,6 +466,9 @@ fn bytes_ticket(contenido: &str) -> Vec<u8> {
 }
 
 /// Convierte el logo del negocio (data URL) a un bitmap monocromo ESC/POS.
+/// El bitmap ocupa todo el ancho del papel y el logo se dibuja centrado
+/// dentro de él: muchas impresoras ignoran la alineación ESC/POS para las
+/// imágenes raster y las imprimen pegadas al margen izquierdo.
 fn logo_raster(data_url: &str, ancho_dots: u32) -> Option<Vec<u8>> {
     let (_, b64) = data_url.split_once(',')?;
     let raw = STANDARD.decode(b64.trim()).ok()?;
@@ -474,22 +477,31 @@ fn logo_raster(data_url: &str, ancho_dots: u32) -> Option<Vec<u8>> {
     if w == 0 || h == 0 {
         return None;
     }
-    let escala = (ancho_dots as f32 / w as f32)
-        .min(ancho_dots as f32 / h as f32)
+    // El logo no debe ocupar todo el ancho del papel: a ancho completo en una
+    // térmica de 58 mm quedaría de casi 5 cm de alto. Se limita a la mitad
+    // del ancho y a un 30 % de alto como máximo.
+    let max_ancho = (ancho_dots as f32 * 0.5).max(1.0);
+    let max_alto = (ancho_dots as f32 * 0.3).max(1.0);
+    let escala = (max_ancho / w as f32)
+        .min(max_alto / h as f32)
         .min(1.0);
-    let nw = ((w as f32 * escala).round() as u32).max(1);
+    let nw = ((w as f32 * escala).round() as u32).max(1).min(ancho_dots);
     let nh = ((h as f32 * escala).round() as u32).max(1);
-    let resized = img.resize_exact(nw, nh, image::imageops::FilterType::Lanczos3).to_rgba8();
+    let resized = img
+        .resize_exact(nw, nh, image::imageops::FilterType::Lanczos3)
+        .to_rgba8();
 
-    let width_bytes = ((nw + 7) / 8) as usize;
+    let ancho = ancho_dots.max(nw);
+    let margen_izq = (ancho - nw) / 2;
+    let width_bytes = ((ancho + 7) / 8) as usize;
     let mut payload = Vec::with_capacity(width_bytes * nh as usize);
     for y in 0..nh {
         for bx in 0..width_bytes {
             let mut byte = 0u8;
             for bit in 0..8 {
                 let x = bx as u32 * 8 + bit as u32;
-                if x < nw {
-                    let p = resized.get_pixel(x, y);
+                if x >= margen_izq && x - margen_izq < nw {
+                    let p = resized.get_pixel(x - margen_izq, y);
                     let a = p[3] as f32 / 255.0;
                     let r = p[0] as f32 * a + 255.0 * (1.0 - a);
                     let g = p[1] as f32 * a + 255.0 * (1.0 - a);
@@ -557,7 +569,10 @@ pub fn imprimir_ticket(
         .flatten()
         .unwrap_or_else(|| "spooler".into());
     let cfg = db::config_map(conn).ok();
-    let logotipo = cfg.as_ref().and_then(|c| c.negocio_logo.as_deref());
+    let logotipo = cfg
+        .as_ref()
+        .filter(|c| c.ticket_mostrar_logo == "1")
+        .and_then(|c| c.negocio_logo.as_deref());
     let dots = cfg.as_ref().map(ancho_papel_dots).unwrap_or(384);
     let data = bytes_ticket_con_logo(contenido, logotipo, dots);
     if modo == "usb" {
@@ -656,7 +671,10 @@ pub fn imprimir_factura(
     }
     let elegido = modo.or(Some(modo_cfg));
     let cfg = db::config_map(&conn).ok();
-    let logotipo = cfg.as_ref().and_then(|c| c.negocio_logo.as_deref());
+    let logotipo = cfg
+        .as_ref()
+        .filter(|c| c.ticket_mostrar_logo == "1")
+        .and_then(|c| c.negocio_logo.as_deref());
     let dots = cfg.as_ref().map(ancho_papel_dots).unwrap_or(384);
     let data = bytes_ticket_con_logo(&ticket, logotipo, dots);
     let resultado = match elegido.as_deref() {
