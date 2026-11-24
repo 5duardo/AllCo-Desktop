@@ -4,12 +4,23 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión sin la v (ej. 0.2.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
+    name: Build ${{ matrix.label }}
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +53,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set version from tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Versión inválida: $VERSION" >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));c.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')"
+
       - name: Build AllCo
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -67,6 +93,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set version from tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Versión inválida: $VERSION" >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p,'utf8'));c.version='${VERSION}';fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')"
+
       - name: Download installers
         uses: actions/download-artifact@v4
         with:
@@ -79,29 +125,40 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           set -euo pipefail
-          cat > notes.md <<'EOF'
-          Instaladores de AllCo v0.1.0.
+          TAG="v${VERSION}"
+          cat > notes.md <<EOF
+          Instaladores de AllCo ${TAG}.
 
-          Windows: `AllCo_0.1.0_x64-setup.exe` (NSIS) o `AllCo_0.1.0_x64_en-US.msi`.
+          **Windows:** ejecuta el instalador \`.exe\` (NSIS) o \`.msi\`.
 
-          macOS (Apple Silicon): abre el DMG y arrastra AllCo a Aplicaciones. Si macOS muestra
+          **macOS (Apple Silicon):** abre el \`.dmg\` y arrastra AllCo a Aplicaciones. Si macOS muestra
           "AllCo está dañado", abre Terminal y ejecuta:
 
               xattr -cr /Applications/AllCo.app
 
-          Eso quita la cuarentena de la descarga. Para que no aparezca nunca el aviso hace falta
-          firmar y notarizar la app con un certificado de Apple Developer.
+          Para publicar sin ese aviso hace falta firmar y notarizar la app con un certificado de
+          Apple Developer.
           EOF
-          gh release delete "$GITHUB_REF_NAME" --yes || true
+
+          gh release delete "$TAG" --yes || true
+
           mapfile -t assets < <(find artifacts -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.app.tar.gz' -o -name '*.sig' \) | sort)
           if [ ${#assets[@]} -eq 0 ]; then
             echo "No se encontraron instaladores para publicar" >&2
             exit 1
           fi
-          gh release create "$GITHUB_REF_NAME" \
+
+          target=()
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            target=(--target "$GITHUB_SHA")
+          fi
+
+          gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "AllCo $GITHUB_REF_NAME" \
+            --title "AllCo $TAG" \
             --notes-file notes.md \
+            "${target[@]}" \
             "${assets[@]}" latest.json
