@@ -1,31 +1,23 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { Download, AppWindow, Calculator, Palette, Power, Printer, RefreshCw, Save, Settings, Store, Trash2, Upload, Users } from "lucide-react";
+import { Calculator, Palette, Printer, Save, Settings, Store, Trash2, Upload } from "lucide-react";
 import { api } from "@/lib/api";
-import { guardarMinimizarAlCerrar, leerMinimizarAlCerrar } from "@/lib/window";
 import { useToast } from "@/context/ToastContext";
 import type { ConfigApp } from "@/lib/types";
 import { BrandLogo } from "@/components/BrandLogo";
 import { AccentPicker, FontPicker, ThemeModePicker } from "@/components/ThemeControls";
-import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
-import { Badge, Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
-import { UsuariosSection } from "@/pages/Usuarios";
 
 const CONFIG_TABS = [
   { id: "marca", label: "Marca", icon: Store },
   { id: "apariencia", label: "Apariencia", icon: Palette },
   { id: "factura", label: "Factura", icon: Printer },
   { id: "fiscal", label: "Fiscal", icon: Calculator },
-  { id: "usuarios", label: "Usuarios", icon: Users },
-  { id: "sistema", label: "Sistema", icon: AppWindow },
 ] as const;
 
 type ConfigTab = (typeof CONFIG_TABS)[number]["id"];
@@ -40,99 +32,12 @@ export function ConfigPage() {
     setParams(id === "marca" ? {} : { tab: id }, { replace: true });
   }
 
-  async function cambiarInicioAutomatico(activo: boolean) {
-    setInicioAutomatico(activo);
-    try {
-      await api.guardarInicioAutomatico(activo);
-      toast.ok(
-        activo
-          ? "AllCo se iniciará al encender la computadora."
-          : "Inicio automático desactivado.",
-      );
-    } catch (e) {
-      setInicioAutomatico(!activo);
-      toast.error(String(e));
-    }
-  }
-
-  const [version, setVersion] = useState("");
-  const [checking, setChecking] = useState(false);
-  const [installing, setInstalling] = useState(false);
-  const [progress, setProgress] = useState("");
-  const [update, setUpdate] = useState<Update | null>(null);
-  const [updateMsg, setUpdateMsg] = useState("");
-  const [updateError, setUpdateError] = useState("");
-  const [minimizarAlCerrar, setMinimizarAlCerrar] = useState(leerMinimizarAlCerrar);
-  const [inicioAutomatico, setInicioAutomatico] = useState(true);
-
   useEffect(() => {
     api
       .obtenerConfig()
       .then(setCfg)
       .catch((e) => toast.error(`No se pudo cargar la configuración: ${e}`));
-    getVersion()
-      .then(setVersion)
-      .catch(() => setVersion("0.1.0"));
-    api
-      .obtenerInicioAutomatico()
-      .then(setInicioAutomatico)
-      .catch((e) => toast.error(`No se pudo consultar el inicio automático: ${e}`));
   }, []);
-
-  async function buscarActualizacion() {
-    setChecking(true);
-    setUpdate(null);
-    setUpdateMsg("");
-    setUpdateError("");
-    setProgress("");
-    try {
-      const disponible = await check();
-      if (disponible) {
-        setUpdate(disponible);
-        setUpdateMsg(`Nueva versión v${disponible.version} disponible.`);
-      } else {
-        setUpdateMsg(`Está al día con la última versión (v${version || "0.1.0"}).`);
-      }
-    } catch (e) {
-      console.error(e);
-      setUpdateError(
-        "No se pudo buscar actualizaciones. Revise la conexión a internet e intente de nuevo.",
-      );
-    } finally {
-      setChecking(false);
-    }
-  }
-
-  async function instalarActualizacion() {
-    if (!update) return;
-    setInstalling(true);
-    setUpdateError("");
-    setProgress("Descargando…");
-    try {
-      let total = 0;
-      let descargado = 0;
-      await update.downloadAndInstall((event) => {
-        if (event.event === "Started") {
-          total = event.data.contentLength ?? 0;
-        } else if (event.event === "Progress") {
-          descargado += event.data.chunkLength;
-          if (total > 0) {
-            setProgress(`Descargando ${Math.round((descargado / total) * 100)}%…`);
-          }
-        } else if (event.event === "Finished") {
-          setProgress("Instalando…");
-        }
-      });
-      setProgress("Actualización instalada. Reiniciando…");
-      await relaunch();
-    } catch (e) {
-      console.error(e);
-      setUpdateError("No se pudo instalar la actualización. Intente de nuevo.");
-      setProgress("");
-    } finally {
-      setInstalling(false);
-    }
-  }
 
   function leerLogo(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -315,8 +220,8 @@ export function ConfigPage() {
     <div className="page">
       <PageHero
         title="Configuración"
-        subtitle="Marca, apariencia, usuarios y sistema"
-        description="Organiza la configuración del negocio, los usuarios, la factura, la apariencia y las opciones de la app."
+        subtitle="Marca, apariencia, factura y datos fiscales"
+        description="Organiza la identidad del negocio, la apariencia de la app, el ticket de caja y los datos fiscales. Los usuarios y las opciones del sistema están en sus propios módulos."
         icon={Settings}
         badge="Ajustes"
       />
@@ -493,75 +398,6 @@ export function ConfigPage() {
             </p>
           </div>
         </Card>
-      ) : null}
-
-      {tab === "sistema" ? (
-        <>
-        <Card className="p-6">
-          <div className="flex items-start gap-3">
-            <span className="icon-chip">
-              <Power className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="card-title">Inicio</h2>
-              <p className="mt-1 text-sm text-fg-muted">
-                AllCo puede abrirse automáticamente al encender la computadora.
-              </p>
-            </div>
-          </div>
-
-          <label className="mt-5 flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border bg-surface-2 px-4 py-3">
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-fg">
-                Iniciar al encender la computadora
-              </span>
-              <span className="mt-0.5 block text-xs text-fg-muted">
-                Activado por defecto. Se aplica la próxima vez que inicie Windows.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              checked={inicioAutomatico}
-              onChange={(e) => void cambiarInicioAutomatico(e.target.checked)}
-            />
-          </label>
-        </Card>
-
-        <Card className="mt-5 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="icon-chip">
-              <AppWindow className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 className="card-title">Ventana</h2>
-              <p className="mt-1 text-sm text-fg-muted">
-                Qué hace la app al pulsar el botón de cerrar.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <label className="mt-5 flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border bg-surface-2 px-4 py-3">
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-fg">
-              Minimizar al pulsar la X
-            </span>
-            <span className="mt-0.5 block text-xs text-fg-muted">
-              La app se minimiza en la barra de tareas en vez de cerrarse.
-            </span>
-          </span>
-          <input
-            type="checkbox"
-            checked={minimizarAlCerrar}
-            onChange={(e) => {
-              setMinimizarAlCerrar(e.target.checked);
-              guardarMinimizarAlCerrar(e.target.checked);
-            }}
-          />
-        </label>
-        </Card>
-        </>
       ) : null}
 
       {tab === "factura" ? (
@@ -763,62 +599,6 @@ export function ConfigPage() {
         </Card>
       ) : null}
 
-      {tab === "sistema" ? (
-        <Card className="mt-5 p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <span className="icon-chip">
-                <Download className="h-5 w-5" />
-              </span>
-              <div>
-                <h2 className="card-title">Actualizaciones</h2>
-              <p className="mt-1 text-sm text-fg-muted">
-                Busca, descarga e instala la última versión disponible.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="accent">Versión instalada v{version || "0.1.0"}</Badge>
-            <Button
-              variant="secondary"
-              onClick={buscarActualizacion}
-              disabled={checking || installing}
-            >
-              <RefreshCw className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} />
-              {checking ? "Buscando…" : "Buscar actualización"}
-            </Button>
-            {update ? (
-              <Button onClick={instalarActualizacion} disabled={installing}>
-                <Download className="h-4 w-4" />
-                {installing ? progress || "Instalando…" : `Instalar v${update.version}`}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        {updateMsg ? (
-          <div className="mt-4 rounded-xl bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-            {updateMsg}
-          </div>
-        ) : null}
-        {update?.body ? (
-          <div className="mt-3 rounded-xl bg-surface-2 px-4 py-3 text-sm text-fg-muted">
-            <p className="mb-1 font-semibold text-fg">Novedades de v{update.version}</p>
-            <p className="whitespace-pre-line">{update.body}</p>
-          </div>
-        ) : null}
-        {update && installing ? (
-          <p className="mt-3 text-sm font-medium text-accent-fg">{progress}</p>
-        ) : null}
-        {updateError ? <Alert className="mb-0 mt-4">{updateError}</Alert> : null}
-
-        <p className="mt-4 text-xs text-fg-faint">
-          Requiere conexión a internet. Si no hay una versión nueva, la app sigue funcionando sin cambios.
-        </p>
-        </Card>
-      ) : null}
-
-      {tab === "usuarios" ? <UsuariosSection /> : null}
 
       <p className="mt-6 text-center text-xs text-fg-faint">
         AllCo ·{" "}

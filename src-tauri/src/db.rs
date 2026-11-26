@@ -159,6 +159,26 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
             mensaje_error TEXT,
             fecha TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS gastos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT NOT NULL,
+            categoria TEXT NOT NULL,
+            descripcion TEXT NOT NULL DEFAULT '',
+            monto REAL NOT NULL,
+            metodo_pago TEXT NOT NULL DEFAULT 'efectivo',
+            proveedor_id INTEGER REFERENCES proveedores(id),
+            usuario_id INTEGER REFERENCES usuarios(id),
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_gastos_fecha ON gastos(fecha);
+        CREATE TABLE IF NOT EXISTS favoritos_dispositivo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL CHECK (tipo IN ('impresora','dispositivo')),
+            nombre TEXT NOT NULL,
+            clase TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            UNIQUE (tipo, nombre)
+        );
         ",
     )
     .map_err(|e| e.to_string())?;

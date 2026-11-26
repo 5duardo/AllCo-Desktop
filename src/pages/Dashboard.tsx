@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -341,7 +342,7 @@ export function DashboardPage() {
             </Link>
           ) : null}
           {!isCaja ? (
-            <Link to="/inventario">
+            <Link to="/catalogo?tab=productos">
               <Button variant="secondary" size="sm">
                 <Warehouse className="h-4 w-4" />
                 Inventario
@@ -431,9 +432,9 @@ export function DashboardPage() {
               </Badge>
             </div>
             {!data ? (
-              <p className="empty-state">Cargando…</p>
+              <p className="px-4 py-10 text-center text-sm text-fg-muted">Cargando…</p>
             ) : data.ultimas_ventas.length === 0 ? (
-              <p className="empty-state">Aún no hay ventas registradas.</p>
+              <EmptyState>Aún no hay ventas registradas.</EmptyState>
             ) : (
               <table className="table">
                 <thead>
@@ -470,7 +471,7 @@ export function DashboardPage() {
             </h2>
             {!isCaja ? (
               <Link
-                to="/inventario"
+                to="/catalogo?tab=productos"
                 className="flex items-center gap-1 text-xs font-semibold text-accent-fg hover:underline"
               >
                 Ver inventario
@@ -479,9 +480,9 @@ export function DashboardPage() {
             ) : null}
           </div>
           {!data ? (
-            <p className="empty-state">Cargando…</p>
+            <EmptyState>Cargando…</EmptyState>
           ) : data.productos_alerta.length === 0 ? (
-            <p className="empty-state">No hay productos activos en el inventario.</p>
+            <EmptyState>No hay productos activos en el inventario.</EmptyState>
           ) : (
             <>
               <ul className="divide-y divide-border">

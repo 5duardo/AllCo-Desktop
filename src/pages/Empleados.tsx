@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Pencil, Plus, Users } from "lucide-react";
 import { api } from "@/lib/api";
@@ -17,7 +18,7 @@ const vacio: EmpleadoIn = {
   activo: true,
 };
 
-export function EmpleadosPage() {
+export function EmpleadosPage({ sinHero = false, sinPage = false }: { sinHero?: boolean; sinPage?: boolean }) {
   const toast = useToast();
   const { puede } = useAuth();
   const [rows, setRows] = useState<Empleado[]>([]);
@@ -54,14 +55,14 @@ export function EmpleadosPage() {
   }
 
   return (
-    <div className="page">
-      <PageHero
+    <div className={sinPage ? undefined : "page"}>
+      {sinHero ? null : <PageHero
         title="Empleados"
         subtitle="Personal del negocio"
         description="Registra al personal, su puesto y su información de contacto."
         icon={Users}
         badge={`${rows.length} empleados`}
-      />
+      />}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <Input
@@ -144,9 +145,9 @@ export function EmpleadosPage() {
             ))}
             {visibles.length === 0 ? (
               <tr>
-                <td colSpan={5} className="empty-state">
+                <td colSpan={5} ><EmptyState>
                   No hay empleados para mostrar.
-                </td>
+                </EmptyState></td>
               </tr>
             ) : null}
           </tbody>

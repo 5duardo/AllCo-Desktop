@@ -16,6 +16,14 @@ type AuthCtx = {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
+/** Módulos unificados: cualquier permiso antiguo del grupo da acceso. */
+const ALIAS_MODULOS: Record<string, string[]> = {
+  "/ventas": ["/facturacion", "/reportes", "/finanzas", "/talonarios"],
+  "/catalogo": ["/inventario", "/servicios", "/proveedores"],
+  "/personas": ["/empleados", "/config"],
+  "/sistema": ["/status", "/base-datos"],
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [permisos, setPermisos] = useState<string[] | null>(null);
@@ -54,17 +62,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function tieneAcceso(modulo: string) {
     if (!user) return false;
-    // El resumen es la portada y Configuración siempre queda abierta para admin.
-    if (modulo === "/" || (modulo === "/config" && user.rol === "admin")) return true;
+    // El resumen es la portada y el administrador siempre ve todos los módulos.
+    if (modulo === "/" || user.rol === "admin") return true;
     if (permisos === null) return true;
-    return permisos.some(
-      (k) => k === modulo || k === `m:${modulo}` || k.startsWith(`${modulo}:`),
+    const claves = [modulo, ...(ALIAS_MODULOS[modulo] ?? [])];
+    return permisos.some((k) =>
+      claves.some((m) => k === m || k === `m:${m}` || k.startsWith(`${m}:`)),
     );
   }
 
   function puede(modulo: string, accion: string) {
     if (!user) return false;
-    if (modulo === "/config" && user.rol === "admin") return true;
+    if (user.rol === "admin" && (modulo === "/config" || modulo === "/finanzas"))
+      return true;
     if (permisos === null) return true;
     // Un permiso antiguo de módulo suelto implicaba todas las acciones.
     return permisos.includes(modulo) || permisos.includes(`${modulo}:${accion}`);

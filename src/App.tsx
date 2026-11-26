@@ -11,18 +11,14 @@ import { LoginPage } from "@/pages/Login";
 import { DashboardPage } from "@/pages/Dashboard";
 import { PosPage } from "@/pages/Pos";
 import { ClientesPage } from "@/pages/Clientes";
-import { EmpleadosPage } from "@/pages/Empleados";
-import { InventarioPage } from "@/pages/Inventario";
 import { DispositivosPage } from "@/pages/Dispositivos";
-import { ServiciosPage } from "@/pages/Servicios";
-import { ReportesPage } from "@/pages/Reportes";
 import { ConfigPage } from "@/pages/Configuracion";
-import { StatusPage } from "@/pages/Status";
-import { BaseDatosPage } from "@/pages/BaseDatos";
 import { PruebasPage } from "@/pages/Pruebas";
-import { ProveedoresPage } from "@/pages/Proveedores";
-import { FacturacionPage } from "@/pages/Facturacion";
-import { TalonariosPage } from "@/pages/Talonarios";
+import { CatalogoPage } from "@/pages/Catalogo";
+import { VentasPage } from "@/pages/Ventas";
+import { PersonasPage } from "@/pages/Personas";
+import { SistemaPage } from "@/pages/Sistema";
+import { SoportePage } from "@/pages/Soporte";
 import { leerMinimizarAlCerrar } from "@/lib/window";
 import type { Rol } from "@/lib/types";
 
@@ -109,31 +105,38 @@ export default function App() {
               <Route element={<Protected />}>
                 <Route element={<AppShell />}>
                   <Route path="/" element={<DashboardPage />} />
+                  <Route path="/soporte" element={<SoportePage />} />
                   <Route element={<Protected roles={["admin", "caja"]} />}>
                     <Route path="/pos" element={<PosPage />} />
-                    <Route path="/facturacion" element={<FacturacionPage />} />
                     <Route path="/clientes" element={<ClientesPage />} />
                     <Route path="/dispositivos" element={<DispositivosPage />} />
+                    <Route path="/ventas" element={<VentasPage />} />
                   </Route>
                   <Route element={<Protected roles={["admin", "bodega"]} />}>
-                    <Route path="/inventario" element={<InventarioPage />} />
-                    <Route path="/proveedores" element={<ProveedoresPage />} />
+                    <Route path="/catalogo" element={<CatalogoPage />} />
                   </Route>
                   <Route element={<Protected roles={["admin"]} />}>
-                    <Route path="/servicios" element={<ServiciosPage />} />
-                    <Route path="/reportes" element={<ReportesPage />} />
-                    <Route path="/talonarios" element={<TalonariosPage />} />
-                    <Route path="/empleados" element={<EmpleadosPage />} />
-                    <Route path="/usuarios" element={<Navigate to="/config?tab=usuarios" replace />} />
+                    <Route path="/personas" element={<PersonasPage />} />
+                    <Route path="/sistema" element={<SistemaPage />} />
                     <Route path="/config" element={<ConfigPage />} />
-                    <Route path="/status" element={<StatusPage />} />
-                    <Route path="/base-datos" element={<BaseDatosPage />} />
                     <Route element={<DevOnly />}>
                       <Route path="/pruebas" element={<PruebasPage />} />
                     </Route>
                   </Route>
                 </Route>
               </Route>
+              {/* Rutas anteriores: redirigen a la pestaña equivalente. */}
+              <Route path="/facturacion" element={<Navigate to="/ventas?tab=facturas" replace />} />
+              <Route path="/reportes" element={<Navigate to="/ventas?tab=reportes" replace />} />
+              <Route path="/finanzas" element={<Navigate to="/ventas?tab=finanzas" replace />} />
+              <Route path="/talonarios" element={<Navigate to="/ventas?tab=talonarios" replace />} />
+              <Route path="/inventario" element={<Navigate to="/catalogo?tab=productos" replace />} />
+              <Route path="/servicios" element={<Navigate to="/catalogo?tab=servicios" replace />} />
+              <Route path="/proveedores" element={<Navigate to="/catalogo?tab=proveedores" replace />} />
+              <Route path="/empleados" element={<Navigate to="/personas?tab=empleados" replace />} />
+              <Route path="/usuarios" element={<Navigate to="/personas?tab=usuarios" replace />} />
+              <Route path="/status" element={<Navigate to="/sistema?tab=estado" replace />} />
+              <Route path="/base-datos" element={<Navigate to="/sistema?tab=datos" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </HashRouter>

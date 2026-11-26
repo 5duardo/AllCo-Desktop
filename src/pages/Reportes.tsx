@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useState } from "react";
 import { BarChart3, PackageSearch, Receipt, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
@@ -14,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 type Tab = "ventas" | "stock";
 
-export function ReportesPage() {
+export function ReportesPage({ sinHero = false, sinPage = false }: { sinHero?: boolean; sinPage?: boolean }) {
   const { puede } = useAuth();
   const [tab, setTab] = useState<Tab>("ventas");
   const [periodo, setPeriodo] = useState("dia");
@@ -48,14 +49,14 @@ export function ReportesPage() {
   }
 
   return (
-    <div className="page">
-      <PageHero
+    <div className={sinPage ? undefined : "page"}>
+      {sinHero ? null : <PageHero
         title="Reportes"
         subtitle="Ventas, kardex y existencias bajo mínimo"
         description="Consulta ventas por periodo, métodos de pago, servicios más vendidos y productos por debajo del stock mínimo."
         icon={BarChart3}
         badge="Ventas y stock"
-      />
+      />}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="seg" role="group" aria-label="Tipo de reporte">
           <button
@@ -82,7 +83,7 @@ export function ReportesPage() {
 
       {tab === "ventas" ? (
         <div className="space-y-5">
-          <Card className="flex flex-wrap items-end gap-4 p-4">
+          <div className="flex flex-wrap items-end gap-4">
             <div className="w-48">
               <Label>Periodo</Label>
               <Select value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
@@ -108,7 +109,7 @@ export function ReportesPage() {
               <RefreshCw className="h-4 w-4" />
               Actualizar
             </Button>
-          </Card>
+          </div>
 
           {rep ? (
             <>
@@ -229,7 +230,7 @@ export function ReportesPage() {
                   </tbody>
                 </table>
                 {rep.ventas.length === 0 ? (
-                  <p className="empty-state">No hay ventas en el periodo seleccionado.</p>
+                  <EmptyState>No hay ventas en el periodo seleccionado.</EmptyState>
                 ) : null}
               </Card>
             </>
@@ -260,7 +261,7 @@ export function ReportesPage() {
             </tbody>
           </table>
           {stock.length === 0 ? (
-            <p className="empty-state">Ningún producto está bajo el stock mínimo.</p>
+            <EmptyState>Ningún producto está bajo el stock mínimo.</EmptyState>
           ) : null}
         </Card>
       )}

@@ -1,11 +1,18 @@
 use crate::commands::auth::{require_accion, require_roles, require_user};
 use crate::db;
+use crate::models::FavoritoDispositivo;
 use crate::AppState;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use tauri::{Manager, State};
+
+/// Evita que Windows abra una ventana de consola al consultar dispositivos.
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Clone, Serialize)]
 pub struct Impresora {
@@ -75,8 +82,11 @@ impl DispositivosData {
 /// Los dispositivos se consultan con WMI/CIM: funciona sin internet ni drivers extra.
 fn powershell_json(script: &str) -> Result<serde_json::Value, String> {
     let full = format!("[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; {script}");
-    let out = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &full])
+    let mut cmd = Command::new("powershell");
+    cmd.args(["-NoProfile", "-NonInteractive", "-Command", &full]);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let out = cmd
         .output()
         .map_err(|e| format!("No se pudo ejecutar PowerShell: {e}"))?;
     if !out.status.success() {
@@ -320,6 +330,86 @@ $d=@(Get-PnpDevice -PresentOnly | Select-Object FriendlyName,Class,Status,Instan
         errores,
         detectando: false,
     })
+}
+
+#[tauri::command]
+pub fn listar_favoritos_dispositivo(
+    state: State<AppState>,
+) -> Result<Vec<FavoritoDispositivo>, String> {
+    require_user(&state)?;
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT tipo, nombre, clase FROM favoritos_dispositivo ORDER BY tipo, nombre")
+        .map_err(|e| e.to_string())?;
+    let filas = stmt
+        .query_map([], |r| {
+            Ok(FavoritoDispositivo {
+                tipo: r.get(0)?,
+                nombre: r.get(1)?,
+                clase: r.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(filas)
+}
+
+/// Marca o desmarca un dispositivo como favorito. Devuelve `true` si quedó
+/// marcado. Los favoritos son de esta PC, no del usuario que los toca.
+#[tauri::command]
+pub fn alternar_favorito_dispositivo(
+    state: State<AppState>,
+    tipo: String,
+    nombre: String,
+    clase: String,
+) -> Result<bool, String> {
+    let user = require_user(&state)?;
+    let tipo = tipo.trim();
+    if !matches!(tipo, "impresora" | "dispositivo") {
+        return Err("Tipo de favorito no válido.".into());
+    }
+    let nombre = nombre.trim();
+    if nombre.is_empty() {
+        return Err("Falta el nombre del dispositivo.".into());
+    }
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let existe: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM favoritos_dispositivo WHERE tipo = ?1 AND nombre = ?2",
+            params![tipo, nombre],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let marcado = if existe > 0 {
+        conn.execute(
+            "DELETE FROM favoritos_dispositivo WHERE tipo = ?1 AND nombre = ?2",
+            params![tipo, nombre],
+        )
+        .map_err(|e| e.to_string())?;
+        false
+    } else {
+        conn.execute(
+            "INSERT INTO favoritos_dispositivo (tipo, nombre, clase, created_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![tipo, nombre, clase.trim(), db::now()],
+        )
+        .map_err(|e| e.to_string())?;
+        true
+    };
+    let _ = db::log_event(
+        &conn,
+        "favorito_dispositivo",
+        Some(user.id),
+        &format!(
+            "{} {} \"{}\" de favoritos",
+            if marcado { "Agregó" } else { "Quitó" },
+            tipo,
+            nombre
+        ),
+        None,
+    );
+    Ok(marcado)
 }
 
 /// Lanza la detección en un hilo aparte; la UI recibe los datos de la caché

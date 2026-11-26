@@ -1,4 +1,5 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, Square, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -54,7 +55,12 @@ function ResizeHandles({ maximizado }: { maximizado: boolean }) {
 export function WindowFrame({ children }: { children: ReactNode }) {
   const tauri = enTauri();
   const [maximizado, setMaximizado] = useState(false);
+  const [version, setVersion] = useState("");
   const { pantallaCompleta } = useFullscreen();
+
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!tauri) return;
@@ -109,6 +115,9 @@ export function WindowFrame({ children }: { children: ReactNode }) {
         >
           <Logo framed={false} className="h-5 w-5" />
           <span className="text-[13px] font-semibold tracking-tight">AllCo</span>
+          {version ? (
+            <span className="text-[11px] text-sidebar-muted">v{version}</span>
+          ) : null}
         </div>
 
         <div data-tauri-drag-region className="h-full flex-1" />

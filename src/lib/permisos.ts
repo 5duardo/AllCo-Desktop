@@ -9,17 +9,18 @@ export const MODULOS_CONFIGURABLES: {
   roles: Rol[];
 }[] = [
   { id: "/pos", label: "Punto de venta", roles: ["admin", "caja"] },
-  { id: "/facturacion", label: "Facturación", roles: ["admin", "caja"] },
   { id: "/clientes", label: "Clientes", roles: ["admin", "caja"] },
-  { id: "/talonarios", label: "Talonarios", roles: ["admin"] },
-  { id: "/inventario", label: "Inventario", roles: ["admin", "bodega"] },
-  { id: "/proveedores", label: "Proveedores", roles: ["admin", "bodega"] },
-  { id: "/servicios", label: "Servicios", roles: ["admin"] },
   { id: "/dispositivos", label: "Dispositivos", roles: ["admin", "caja"] },
-  { id: "/empleados", label: "Empleados", roles: ["admin"] },
-  { id: "/reportes", label: "Reportes", roles: ["admin"] },
-  { id: "/status", label: "Registros", roles: ["admin"] },
-  { id: "/base-datos", label: "Base de datos", roles: ["admin"] },
+  { id: "/facturacion", label: "Ventas · Facturas", roles: ["admin", "caja"] },
+  { id: "/reportes", label: "Ventas · Reportes", roles: ["admin"] },
+  { id: "/finanzas", label: "Ventas · Finanzas", roles: ["admin"] },
+  { id: "/talonarios", label: "Ventas · Talonarios", roles: ["admin"] },
+  { id: "/inventario", label: "Catálogo · Productos", roles: ["admin", "bodega"] },
+  { id: "/proveedores", label: "Catálogo · Proveedores", roles: ["admin", "bodega"] },
+  { id: "/servicios", label: "Catálogo · Servicios", roles: ["admin"] },
+  { id: "/empleados", label: "Personas · Empleados", roles: ["admin"] },
+  { id: "/status", label: "Sistema · Estado", roles: ["admin"] },
+  { id: "/base-datos", label: "Sistema · Base de datos", roles: ["admin"] },
 ];
 
 export const ACCIONES = [

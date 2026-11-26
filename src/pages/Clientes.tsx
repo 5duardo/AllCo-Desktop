@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useState, type FormEvent } from "react";
 import { Contact, Pencil, Plus, Receipt, Search } from "lucide-react";
 import { api } from "@/lib/api";
@@ -108,7 +109,7 @@ export function ClientesPage() {
         </div>
       ) : null}
 
-      <Card className="mb-4 p-3">
+      <div className="mb-4">
         <form onSubmit={search} className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-56 flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-faint" />
@@ -123,7 +124,7 @@ export function ClientesPage() {
             Buscar
           </Button>
         </form>
-      </Card>
+      </div>
 
       <Card className="overflow-x-auto">
         <table className="table">
@@ -169,7 +170,7 @@ export function ClientesPage() {
           </tbody>
         </table>
         {rows.length === 0 ? (
-          <p className="empty-state">No hay clientes con ese criterio.</p>
+          <EmptyState>No hay clientes con ese criterio.</EmptyState>
         ) : null}
       </Card>
 
@@ -244,7 +245,7 @@ export function ClientesPage() {
         {cargandoFacturas ? (
           <p className="text-sm text-fg-muted">Cargando facturas…</p>
         ) : facturas.length === 0 ? (
-          <p className="empty-state">Este cliente todavía no tiene facturas.</p>
+          <EmptyState>Este cliente todavía no tiene facturas.</EmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="table">

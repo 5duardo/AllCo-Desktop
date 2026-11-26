@@ -25,7 +25,7 @@ function estadoRespaldo(s: string) {
   return { label: "Atrasado", tone: "warn" as const };
 }
 
-export function BaseDatosPage() {
+export function BaseDatosPage({ sinHero = false, sinPage = false }: { sinHero?: boolean; sinPage?: boolean }) {
   const toast = useToast();
   const { puede } = useAuth();
   const [data, setData] = useState<StatusSistema | null>(null);
@@ -74,7 +74,7 @@ export function BaseDatosPage() {
 
   if (!data)
     return (
-      <div className="page">
+      <div className={sinPage ? undefined : "page"}>
         {error ? <Alert>{error}</Alert> : <p className="text-sm text-fg-muted">Cargando…</p>}
       </div>
     );
@@ -82,14 +82,14 @@ export function BaseDatosPage() {
   const backupTone = estadoRespaldo(data.estado_respaldo);
 
   return (
-    <div className="page">
-      <PageHero
+    <div className={sinPage ? undefined : "page"}>
+      {sinHero ? null : <PageHero
         title="Base de datos"
         subtitle="Copias de seguridad y mantenimiento"
         description="Revisa el tamaño de la base, administra los respaldos locales y elimina datos operativos con una copia de seguridad previa."
         icon={Database}
         badge="Solo administrador"
-      />
+      />}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat

@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
 import {
   Archive,
@@ -78,7 +79,7 @@ function ImagenProducto({
   );
 }
 
-export function InventarioPage() {
+export function InventarioPage({ sinHero = false, sinPage = false }: { sinHero?: boolean; sinPage?: boolean }) {
   const { user, puede } = useAuth();
   const isAdmin = user?.rol === "admin";
   const [vista, setVista] = useState<Vista>(() => {
@@ -443,7 +444,7 @@ export function InventarioPage() {
 
   function tablaMovimientos(lista: Movimiento[]) {
     if (lista.length === 0) {
-      return <p className="empty-state">Sin movimientos registrados.</p>;
+      return <EmptyState>Sin movimientos registrados.</EmptyState>;
     }
     return (
       <div className="overflow-x-auto">
@@ -480,8 +481,8 @@ export function InventarioPage() {
   }
 
   return (
-    <div className="page">
-      <PageHero
+    <div className={sinPage ? undefined : "page"}>
+      {sinHero ? null : <PageHero
         title="Inventario"
         subtitle="Productos y existencias · kardex y stock mínimo"
         description="Registra productos, controla entradas y salidas, revisa el stock mínimo y consulta el kardex de cada artículo."
@@ -491,7 +492,7 @@ export function InventarioPage() {
             ? `${movimientosFiltrados.length} movimientos`
             : `${rows.length} productos`
         }
-      />
+      />}
       <div className="mb-4 flex flex-wrap justify-end gap-2">
         {puede("/inventario", "editar") ? (
           <Button variant="outline" onClick={() => abrirMovimientoLibre()}>
@@ -507,7 +508,7 @@ export function InventarioPage() {
         ) : null}
       </div>
 
-      <Card className="mb-4 p-3">
+      <div className="mb-4">
         <form onSubmit={search} className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-56 flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-faint" />
@@ -569,7 +570,7 @@ export function InventarioPage() {
             </button>
           </div>
         </form>
-      </Card>
+      </div>
 
       {vista !== "movimientos" && codigoNoEncontrado ? (
         <Alert tone="warn" className="mb-4">
@@ -679,12 +680,12 @@ export function InventarioPage() {
             </tbody>
           </table>
           {rows.length === 0 ? (
-            <p className="empty-state">No se encontraron productos con ese criterio.</p>
+            <EmptyState>No se encontraron productos con ese criterio.</EmptyState>
           ) : null}
         </Card>
       ) : rows.length === 0 ? (
         <Card>
-          <p className="empty-state">No se encontraron productos con ese criterio.</p>
+          <EmptyState>No se encontraron productos con ese criterio.</EmptyState>
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">

@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
@@ -48,7 +49,7 @@ function fila(...valores: (string | number)[]) {
   return valores.map(campo).join(";");
 }
 
-export function TalonariosPage() {
+export function TalonariosPage({ sinHero = false, sinPage = false }: { sinHero?: boolean; sinPage?: boolean }) {
   const toast = useToast();
   const hoy = useMemo(() => new Date(), []);
   const [anio, setAnio] = useState(hoy.getFullYear());
@@ -170,15 +171,15 @@ export function TalonariosPage() {
   );
 
   return (
-    <div className="page">
-      <PageHero
+    <div className={sinPage ? undefined : "page"}>
+      {sinHero ? null : <PageHero
         title="Talonarios"
         subtitle="Reporte mensual para la declaración"
         description="Resume las facturas del mes, el rango autorizado y los impuestos estimados para preparar la declaración mensual."
         icon={ReceiptText}
-      />
+      />}
 
-      <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
+      <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="w-40">
           <Label>Mes</Label>
           <Select value={mes} onChange={(e) => setMes(Number(e.target.value))}>
@@ -205,7 +206,7 @@ export function TalonariosPage() {
         </Button>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Link
-            to="/config"
+            to="/config?tab=fiscal"
             className="text-xs font-semibold text-accent-fg hover:underline"
           >
             Editar datos fiscales
@@ -215,7 +216,7 @@ export function TalonariosPage() {
             {exportando ? "Exportando…" : "Exportar CSV"}
           </Button>
         </div>
-      </Card>
+      </div>
 
       <Card className="mb-4 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -324,7 +325,7 @@ export function TalonariosPage() {
             </tbody>
           </table>
           {ventas.length === 0 ? (
-            <p className="empty-state">No hay facturas registradas en este mes.</p>
+            <EmptyState>No hay facturas registradas en este mes.</EmptyState>
           ) : null}
         </div>
         {ventas.length > LIMITE ? (

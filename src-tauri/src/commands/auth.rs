@@ -55,6 +55,35 @@ pub fn require_accion(state: &AppState, modulo: &str, accion: &str) -> Result<()
     Ok(())
 }
 
+/// Acceso a un módulo opcional: admin siempre entra, los demás roles solo si
+/// el administrador les dio el permiso desde Usuarios → Permisos.
+/// `accion` exige además la acción concreta dentro del módulo.
+pub fn require_modulo(
+    state: &AppState,
+    modulo: &str,
+    accion: Option<&str>,
+) -> Result<UsuarioPublico, String> {
+    let user = require_user(state)?;
+    if user.rol == "admin" {
+        return Ok(user);
+    }
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let keys = db::permisos_usuario(&conn, user.id)?.unwrap_or_default();
+    let acceso = keys
+        .iter()
+        .any(|k| k == modulo || k == &format!("m:{modulo}") || k.starts_with(&format!("{modulo}:")));
+    if !acceso {
+        return Err("No tiene acceso a este módulo. Pida permiso al administrador.".into());
+    }
+    if let Some(accion) = accion {
+        let clave = format!("{modulo}:{accion}");
+        if !keys.iter().any(|k| k == modulo) && !keys.contains(&clave) {
+            return Err("No tiene permiso para esta acción.".into());
+        }
+    }
+    Ok(user)
+}
+
 pub fn require_dev(state: &AppState) -> Result<UsuarioPublico, String> {
     let user = require_user(state)?;
     if !user.dev {

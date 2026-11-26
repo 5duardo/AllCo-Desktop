@@ -15,21 +15,21 @@ export function PageHero({
   children?: ReactNode;
 }) {
   return (
-    <div className="mb-5 rounded-2xl bg-accent p-6 text-on-accent md:p-7">
+    <div className="hero-text mb-5 rounded-2xl bg-accent p-6 text-on-accent md:p-7">
       <div className="flex min-w-0 items-center gap-3">
         {Icon ? (
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-on-accent text-accent">
+          <span className="hero-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-full">
             <Icon className="h-5 w-5" />
           </span>
         ) : null}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="truncate text-2xl font-bold tracking-tight">{title}</h1>
+            <h1 className="hero-text truncate text-2xl font-bold tracking-tight">{title}</h1>
             <span className="group relative inline-flex shrink-0">
               <button
                 type="button"
                 aria-label={`Información de ${title}`}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-on-accent/80 outline-none transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                className="hero-text flex h-5 w-5 items-center justify-center rounded-full text-on-accent outline-none hover:brightness-90 focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
               >
                 <Info className="h-3.5 w-3.5" />
               </button>
@@ -42,7 +42,7 @@ export function PageHero({
             </span>
           </div>
           {subtitle ? (
-            <p className="mt-0.5 text-sm text-on-accent/75">{subtitle}</p>
+            <p className="hero-text mt-0.5 text-sm font-medium text-on-accent">{subtitle}</p>
           ) : null}
         </div>
       </div>

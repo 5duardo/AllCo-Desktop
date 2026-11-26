@@ -453,6 +453,19 @@ input[type="checkbox"]:disabled {
     @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg;
   }
 
+  /* Círculo del icono del hero: color sólido del tema, sin opacidad. */
+  .hero-icon {
+    background-color: var(--on-accent) !important;
+    color: var(--accent) !important;
+    opacity: 1 !important;
+  }
+
+  /* Texto del hero: mismo color sólido, sin opacidad heredada. */
+  .hero-text {
+    color: var(--on-accent) !important;
+    opacity: 1 !important;
+  }
+
   .sidebar-link {
     transition:
       background-color 0.15s ease,

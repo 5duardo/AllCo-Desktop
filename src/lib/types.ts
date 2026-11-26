@@ -17,6 +17,12 @@ export type DispositivoSimple = {
   estado: string;
 };
 
+export type FavoritoDispositivo = {
+  tipo: string;
+  nombre: string;
+  clase: string;
+};
+
 export type DispositivosData = {
   impresoras: Impresora[];
   lectores: DispositivoSimple[];
@@ -275,4 +281,70 @@ export type MarcaNegocio = {
 export type CartLine = VentaItemIn & {
   nombre: string;
   stock?: number;
+};
+
+export const CATEGORIAS_GASTO = [
+  "Renta",
+  "Sueldos",
+  "Servicios",
+  "Transporte",
+  "Publicidad",
+  "Impuestos",
+  "Mantenimiento",
+  "Otros",
+] as const;
+
+export type Gasto = {
+  id: number;
+  fecha: string;
+  categoria: string;
+  descripcion: string;
+  monto: number;
+  metodo_pago: string;
+  proveedor_id: number | null;
+  proveedor_nombre: string | null;
+  usuario_nombre: string;
+  created_at: string;
+};
+
+export type GastoIn = {
+  id?: number | null;
+  fecha: string;
+  categoria: string;
+  descripcion: string;
+  monto: number;
+  metodo_pago: string;
+  proveedor_id: number | null;
+};
+
+export type CompraInventario = {
+  id: number;
+  fecha: string;
+  producto_id: number;
+  producto_nombre: string;
+  cantidad: number;
+  costo_unitario: number;
+  total: number;
+  motivo: string;
+};
+
+export type DiaFinanza = {
+  fecha: string;
+  ingresos: number;
+  gastos: number;
+  utilidad: number;
+};
+
+export type ResumenFinanzas = {
+  desde: string;
+  hasta: string;
+  ingresos: number;
+  gastos_manuales: number;
+  compras_inventario: number;
+  gastos_totales: number;
+  utilidad_neta: number;
+  por_categoria: TotalesGrupo[];
+  serie: DiaFinanza[];
+  gastos: Gasto[];
+  compras: CompraInventario[];
 };

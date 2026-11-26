@@ -24,7 +24,7 @@ function impresoraLabel(s: string) {
   return { label: "Sin uso aún", tone: "default" as const };
 }
 
-export function StatusPage() {
+export function StatusPage({ sinHero = false, sinPage = false }: { sinHero?: boolean; sinPage?: boolean }) {
   const [data, setData] = useState<StatusSistema | null>(null);
   const [error, setError] = useState("");
   const [verTodosLogins, setVerTodosLogins] = useState(false);
@@ -41,7 +41,7 @@ export function StatusPage() {
 
   if (!data)
     return (
-      <div className="page">
+      <div className={sinPage ? undefined : "page"}>
         {error ? <Alert>{error}</Alert> : <p className="text-sm text-fg-muted">Cargando registros…</p>}
       </div>
     );
@@ -59,14 +59,14 @@ export function StatusPage() {
     : data.bitacora.slice(0, LIMITE_BITACORA);
 
   return (
-    <div className="page">
-      <PageHero
+    <div className={sinPage ? undefined : "page"}>
+      {sinHero ? null : <PageHero
         title="Registros del sistema"
         subtitle="Registro de actividad, errores e impresión. Solo administrador."
-        description="Revisa la actividad reciente, los errores y el estado de los periféricos conectados. La base de datos y los respaldos están en su propia página."
+        description="Revisa la actividad reciente, los errores y el estado de los periféricos conectados. Los respaldos están en la pestaña Base de datos de este módulo."
         icon={Activity}
         badge="Sistema"
-      />
+      />}
 
       {error ? <Alert>{error}</Alert> : null}
 

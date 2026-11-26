@@ -395,3 +395,70 @@ pub struct UsuarioIn {
     pub rol: String,
     pub activo: bool,
 }
+
+#[derive(Debug, Serialize)]
+pub struct Gasto {
+    pub id: i64,
+    pub fecha: String,
+    pub categoria: String,
+    pub descripcion: String,
+    pub monto: f64,
+    pub metodo_pago: String,
+    pub proveedor_id: Option<i64>,
+    pub proveedor_nombre: Option<String>,
+    pub usuario_nombre: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GastoIn {
+    pub id: Option<i64>,
+    pub fecha: String,
+    pub categoria: String,
+    pub descripcion: String,
+    pub monto: f64,
+    pub metodo_pago: String,
+    pub proveedor_id: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FavoritoDispositivo {
+    pub tipo: String,
+    pub nombre: String,
+    pub clase: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CompraInventario {
+    pub id: i64,
+    pub fecha: String,
+    pub producto_id: i64,
+    pub producto_nombre: String,
+    pub cantidad: i64,
+    pub costo_unitario: f64,
+    pub total: f64,
+    pub motivo: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DiaFinanza {
+    pub fecha: String,
+    pub ingresos: f64,
+    pub gastos: f64,
+    pub utilidad: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ResumenFinanzas {
+    pub desde: String,
+    pub hasta: String,
+    pub ingresos: f64,
+    pub gastos_manuales: f64,
+    pub compras_inventario: f64,
+    pub gastos_totales: f64,
+    pub utilidad_neta: f64,
+    pub por_categoria: Vec<TotalesGrupo>,
+    pub serie: Vec<DiaFinanza>,
+    pub gastos: Vec<Gasto>,
+    pub compras: Vec<CompraInventario>,
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { KeyRound, Pencil, Plus, Users } from "lucide-react";
+import { KeyRound, Lock, Pencil, Plus, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
@@ -138,8 +138,19 @@ export function UsuariosSection() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((u) => (
-              <tr key={u.id} className={!u.activo ? "opacity-55" : undefined}>
+            {rows.map((u) => {
+              const bloqueado = u.dev && !user?.dev;
+              return (
+              <tr
+                key={u.id}
+                className={
+                  !u.activo
+                    ? "opacity-55"
+                    : bloqueado
+                      ? "opacity-60"
+                      : undefined
+                }
+              >
                 <td>
                   <div className="flex items-center gap-3">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent-fg">
@@ -152,6 +163,9 @@ export function UsuariosSection() {
                         .toUpperCase()}
                     </span>
                     <span className="font-medium">{u.nombre}</span>
+                    {bloqueado ? (
+                      <Lock className="h-3.5 w-3.5 shrink-0 text-fg-faint" />
+                    ) : null}
                   </div>
                 </td>
                 <td className="font-mono text-xs text-fg-muted">{u.usuario}</td>
@@ -160,11 +174,25 @@ export function UsuariosSection() {
                     {u.dev ? "Desarrollador" : rolLabel(u.rol)}
                   </Badge>
                 </td>
-                <td>{u.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
+                <td>
+                  {bloqueado ? (
+                    <Badge className="opacity-80">
+                      <Lock className="h-3 w-3" />
+                      Bloqueado
+                    </Badge>
+                  ) : u.activo ? (
+                    <Badge tone="ok">Activo</Badge>
+                  ) : (
+                    <Badge>Inactivo</Badge>
+                  )}
+                </td>
                 <td>
                   <div className="flex justify-end gap-2">
-                    {u.dev && !user?.dev ? (
-                      <Badge>Solo dev</Badge>
+                    {bloqueado ? (
+                      <Badge className="opacity-80">
+                        <Lock className="h-3 w-3" />
+                        Solo dev
+                      </Badge>
                     ) : (
                       <>
                         {puede("/config", "editar") ? (
@@ -196,7 +224,8 @@ export function UsuariosSection() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </Card>

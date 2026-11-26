@@ -1,9 +1,11 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Printer, RefreshCw, ScanBarcode, Usb } from "lucide-react";
+import { Printer, RefreshCw, ScanBarcode, Star, Usb } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
 import { fechaHora } from "@/lib/format";
-import type { DispositivosData } from "@/lib/types";
+import type { DispositivosData, FavoritoDispositivo } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
@@ -12,9 +14,36 @@ import { Input, Label } from "@/components/ui/input";
 
 const LIMITE_USB = 8;
 
+type TipoFavorito = "impresora" | "dispositivo";
+
+function BotonFavorito({
+  activo,
+  nombre,
+  onClick,
+}: {
+  activo: boolean;
+  nombre: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="iconSm"
+      title={activo ? `Quitar "${nombre}" de favoritos` : `Agregar "${nombre}" a favoritos`}
+      aria-label={activo ? `Quitar ${nombre} de favoritos` : `Agregar ${nombre} a favoritos`}
+      aria-pressed={activo}
+      onClick={onClick}
+    >
+      <Star className={cn("h-4 w-4", activo && "fill-current text-warn-fg")} />
+    </Button>
+  );
+}
+
 export function DispositivosPage() {
   const toast = useToast();
   const [data, setData] = useState<DispositivosData | null>(null);
+  const [favoritos, setFavoritos] = useState<FavoritoDispositivo[]>([]);
+  const [soloFavoritos, setSoloFavoritos] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [probando, setProbando] = useState("");
   const [scan, setScan] = useState("");
@@ -41,6 +70,36 @@ export function DispositivosPage() {
     }
   }
 
+  async function cargarFavoritos() {
+    try {
+      setFavoritos(await api.listarFavoritosDispositivo());
+    } catch {
+      // Los favoritos no son críticos para usar la página.
+    }
+  }
+
+  async function alternarFavorito(
+    tipo: TipoFavorito,
+    nombre: string,
+    clase = "",
+  ) {
+    try {
+      const marcado = await api.alternarFavoritoDispositivo(tipo, nombre, clase);
+      setFavoritos((f) =>
+        marcado
+          ? [...f, { tipo, nombre, clase }]
+          : f.filter((x) => !(x.tipo === tipo && x.nombre === nombre)),
+      );
+      toast.ok(
+        marcado
+          ? `"${nombre}" agregado a favoritos.`
+          : `"${nombre}" quitado de favoritos.`,
+      );
+    } catch (err) {
+      toast.error(String(err));
+    }
+  }
+
   async function forzar() {
     setCargando(true);
     reintentos.current = 0;
@@ -56,6 +115,7 @@ export function DispositivosPage() {
 
   useEffect(() => {
     void cargar();
+    void cargarFavoritos();
   }, []);
 
   async function elegirImpresora(
@@ -97,7 +157,9 @@ export function DispositivosPage() {
       await api.registrarEscaneo(codigo);
       const p = await api.buscarProductoCodigo(codigo);
       setScanResultado(
-        p ? `${codigo} → ${p.nombre} (stock ${p.stock})` : `${codigo} → sin producto registrado con ese código`,
+        p
+          ? `${codigo} → ${p.nombre} (stock ${p.stock})`
+          : `${codigo} → sin producto registrado con ese código`,
       );
       setData((d) => (d ? { ...d, ultimo_escaneo: new Date().toISOString() } : d));
     } catch (err) {
@@ -105,22 +167,93 @@ export function DispositivosPage() {
     }
   }
 
-  const usbVisibles = data
-    ? verTodosUsb
-      ? data.usb
-      : data.usb.slice(0, LIMITE_USB)
-    : [];
+  const clavesFavoritas = new Set(
+    favoritos.map((f) => `${f.tipo}:${f.nombre}`),
+  );
+  const esFavorito = (tipo: string, nombre: string) =>
+    clavesFavoritas.has(`${tipo}:${nombre}`);
+
+  function visibles<T extends { nombre: string }>(lista: T[], tipo: TipoFavorito): T[] {
+    const filtrados = soloFavoritos
+      ? lista.filter((x) => esFavorito(tipo, x.nombre))
+      : lista;
+    // Los favoritos se muestran primero dentro de cada sección.
+    return [...filtrados].sort(
+      (a, b) => Number(esFavorito(tipo, b.nombre)) - Number(esFavorito(tipo, a.nombre)),
+    );
+  }
+
+  const impresoras = data ? visibles(data.impresoras, "impresora") : [];
+  const lectores = data ? visibles(data.lectores, "dispositivo") : [];
+  const usb = data ? visibles(data.usb, "dispositivo") : [];
+  const usbVisibles = verTodosUsb ? usb : usb.slice(0, LIMITE_USB);
 
   return (
     <div className="page">
       <PageHero
         title="Dispositivos"
         subtitle="Impresora de facturas y lector de código de barras"
-        description="Vea los dispositivos conectados a esta PC, elija la impresora para las facturas de caja y pruebe el lector de código de barras."
+        description="Vea los dispositivos conectados a esta PC, marque sus favoritos, elija la impresora para las facturas de caja y pruebe el lector de código de barras."
         icon={Printer}
         badge={data ? `${data.impresoras.length} impresoras` : "Detectando…"}
       />
+
+      {favoritos.length > 0 ? (
+        <section className="mb-6">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-bold">
+            <Star className="h-5 w-5 text-warn-fg" />
+            Favoritos
+          </h2>
+          <Card className="p-4">
+            <div className="flex flex-wrap gap-2">
+              {favoritos.map((f) => {
+                const conectado =
+                  f.tipo === "impresora"
+                    ? data?.impresoras.some((i) => i.nombre === f.nombre)
+                    : data?.lectores.some((l) => l.nombre === f.nombre) ||
+                      data?.usb.some((u) => u.nombre === f.nombre);
+                return (
+                  <div
+                    key={`${f.tipo}:${f.nombre}`}
+                    className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 px-3 py-2"
+                  >
+                    <Star className="h-4 w-4 shrink-0 fill-current text-warn-fg" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-fg">
+                        {f.nombre}
+                      </p>
+                      <p className="text-xs text-fg-muted">
+                        {f.tipo === "impresora" ? "Impresora" : f.clase || "Dispositivo"}
+                        {conectado === false ? " · no detectado ahora" : ""}
+                      </p>
+                    </div>
+                    <BotonFavorito
+                      activo
+                      nombre={f.nombre}
+                      onClick={() =>
+                        void alternarFavorito(f.tipo as TipoFavorito, f.nombre, f.clase)
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </section>
+      ) : null}
+
       <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
+        <Button
+          variant={soloFavoritos ? "secondary" : "ghost"}
+          size="sm"
+          onClick={() => setSoloFavoritos((v) => !v)}
+          aria-pressed={soloFavoritos}
+        >
+          <Star
+            className={cn("h-4 w-4", soloFavoritos && "fill-current text-warn-fg")}
+          />
+          Solo favoritos
+        </Button>
         {data?.detectando ? (
           <span className="flex items-center gap-2 text-xs text-fg-muted">
             <RefreshCw className="h-3.5 w-3.5 animate-spin" />
@@ -143,29 +276,41 @@ export function DispositivosPage() {
           <Printer className="h-5 w-5 text-accent-fg" />
           Impresoras y dispositivos de impresión
         </h2>
-        {!data || data.impresoras.length === 0 ? (
+        {!data || impresoras.length === 0 ? (
           <Card>
-            <p className="empty-state">
+            <EmptyState>
               {data?.detectando
                 ? "Detectando dispositivos en segundo plano…"
-                : "No se detectaron impresoras ni dispositivos de impresión en esta PC."}
-            </p>
+                : soloFavoritos && favoritos.length > 0
+                  ? "Ninguna impresora favorita está conectada ahora."
+                  : "No se detectaron impresoras ni dispositivos de impresión en esta PC."}
+            </EmptyState>
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {data.impresoras.map((imp) => {
+            {impresoras.map((imp) => {
               const seleccionada = data.impresora_ticket === imp.nombre;
+              const favorita = esFavorito("impresora", imp.nombre);
               return (
                 <Card key={imp.nombre} className="flex flex-col p-4">
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-semibold">{imp.nombre}</p>
-                    {!imp.instalada ? (
-                      <Badge tone="warn">Detectada por USB</Badge>
-                    ) : imp.sin_conexion ? (
-                      <Badge tone="warn">Sin conexión</Badge>
-                    ) : (
-                      <Badge tone="ok">Lista</Badge>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1">
+                      <BotonFavorito
+                        activo={favorita}
+                        nombre={imp.nombre}
+                        onClick={() =>
+                          void alternarFavorito("impresora", imp.nombre)
+                        }
+                      />
+                      {!imp.instalada ? (
+                        <Badge tone="warn">Detectada por USB</Badge>
+                      ) : imp.sin_conexion ? (
+                        <Badge tone="warn">Sin conexión</Badge>
+                      ) : (
+                        <Badge tone="ok">Lista</Badge>
+                      )}
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-fg-muted">
                     {imp.instalada
@@ -176,7 +321,9 @@ export function DispositivosPage() {
                     {imp.predeterminada ? <Badge>Predeterminada de Windows</Badge> : null}
                     {seleccionada ? (
                       <Badge tone="accent">
-                        {data.modo === "usb" ? "Facturas · USB directo" : "Para facturas de caja"}
+                        {data.modo === "usb"
+                          ? "Facturas · USB directo"
+                          : "Para facturas de caja"}
                       </Badge>
                     ) : null}
                     {imp.puente ? <Badge tone="ok">Sin driver · USB directo</Badge> : null}
@@ -218,8 +365,9 @@ export function DispositivosPage() {
                     </div>
                   ) : (
                     <p className="mt-3 text-xs text-fg-muted">
-                      Windows no tiene un driver instalado ni se pudo abrir el dispositivo por USB.
-                      Instale el driver ESC/POS de SAT (o "Generic / Text Only") y vuelva a detectar.
+                      Windows no tiene un driver instalado ni se pudo abrir el dispositivo por
+                      USB. Instale el driver ESC/POS de SAT (o "Generic / Text Only") y vuelva a
+                      detectar.
                     </p>
                   )}
                 </Card>
@@ -246,7 +394,9 @@ export function DispositivosPage() {
               El lector USB funciona como teclado (HID): Windows no lo distingue de un teclado
               normal, por eso se verifica con un escaneo real. Último escaneo registrado:{" "}
               <strong className="text-fg">
-                {data?.ultimo_escaneo ? fechaHora(data.ultimo_escaneo) : "ninguno en esta sesión"}
+                {data?.ultimo_escaneo
+                  ? fechaHora(data.ultimo_escaneo)
+                  : "ninguno en esta sesión"}
               </strong>
             </p>
             <form onSubmit={probarLector} className="mt-4">
@@ -259,7 +409,9 @@ export function DispositivosPage() {
               />
             </form>
             {scanResultado ? (
-              <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 font-mono text-xs">{scanResultado}</p>
+              <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 font-mono text-xs">
+                {scanResultado}
+              </p>
             ) : null}
           </Card>
           <Card className="overflow-x-auto">
@@ -268,10 +420,11 @@ export function DispositivosPage() {
                 <tr>
                   <th>Teclados / lectores HID detectados</th>
                   <th>Estado</th>
+                  <th aria-label="Favorito" />
                 </tr>
               </thead>
               <tbody>
-                {data?.lectores.map((l, i) => (
+                {lectores.map((l, i) => (
                   <tr key={`${l.nombre}-${i}`}>
                     <td>{l.nombre}</td>
                     <td>
@@ -279,12 +432,21 @@ export function DispositivosPage() {
                         {l.estado === "OK" ? "Conectado" : l.estado || "—"}
                       </Badge>
                     </td>
+                    <td>
+                      <BotonFavorito
+                        activo={esFavorito("dispositivo", l.nombre)}
+                        nombre={l.nombre}
+                        onClick={() =>
+                          void alternarFavorito("dispositivo", l.nombre, l.clase)
+                        }
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {data && data.lectores.length === 0 ? (
-              <p className="empty-state">No se detectaron teclados HID.</p>
+            {data && lectores.length === 0 ? (
+              <EmptyState>No se detectaron teclados HID.</EmptyState>
             ) : null}
           </Card>
         </div>
@@ -302,6 +464,7 @@ export function DispositivosPage() {
                 <th>Dispositivo</th>
                 <th>Tipo</th>
                 <th>Estado</th>
+                <th aria-label="Favorito" />
               </tr>
             </thead>
             <tbody>
@@ -314,23 +477,26 @@ export function DispositivosPage() {
                       {d.estado === "OK" ? "Conectado" : d.estado || "—"}
                     </Badge>
                   </td>
+                  <td>
+                    <BotonFavorito
+                      activo={esFavorito("dispositivo", d.nombre)}
+                      nombre={d.nombre}
+                      onClick={() =>
+                        void alternarFavorito("dispositivo", d.nombre, d.clase)
+                      }
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {data && data.usb.length === 0 ? (
-            <p className="empty-state">No se detectaron dispositivos USB o HID.</p>
+          {data && usb.length === 0 ? (
+            <EmptyState>No se detectaron dispositivos USB o HID.</EmptyState>
           ) : null}
-          {data && data.usb.length > LIMITE_USB ? (
+          {usb.length > LIMITE_USB ? (
             <div className="flex justify-end border-t border-border px-4 py-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setVerTodosUsb((v) => !v)}
-              >
-                {verTodosUsb
-                  ? "Ver menos"
-                  : `Ver más (${data.usb.length - LIMITE_USB})`}
+              <Button variant="ghost" size="sm" onClick={() => setVerTodosUsb((v) => !v)}>
+                {verTodosUsb ? "Ver menos" : `Ver más (${usb.length - LIMITE_USB})`}
               </Button>
             </div>
           ) : null}

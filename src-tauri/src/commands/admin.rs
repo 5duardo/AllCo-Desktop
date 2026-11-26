@@ -1,3 +1,4 @@
+use crate::autostart;
 use crate::commands::auth::{require_accion, require_dev, require_roles, require_user};
 use crate::db;
 use crate::models::{
@@ -11,7 +12,6 @@ use std::net::TcpStream;
 use std::time::Duration;
 use sysinfo::Disks;
 use tauri::{AppHandle, State};
-use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -154,10 +154,9 @@ pub fn guardar_config(state: State<AppState>, data: ConfigApp) -> Result<(), Str
 }
 
 #[tauri::command]
-pub fn obtener_inicio_automatico(state: State<AppState>) -> Result<bool, String> {
+pub fn obtener_inicio_automatico(app: AppHandle, state: State<AppState>) -> Result<bool, String> {
     require_roles(&state, &["admin"])?;
-    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
-    Ok(db::config_flag(&conn, "iniciar_al_encender", true))
+    Ok(autostart::activo(&app).unwrap_or(false))
 }
 
 #[tauri::command]
@@ -168,12 +167,13 @@ pub fn guardar_inicio_automatico(
 ) -> Result<(), String> {
     require_roles(&state, &["admin"])?;
     require_accion(&state, "/config", "editar")?;
-    let manager = app.autolaunch();
-    if activo {
-        manager.enable().map_err(|e| e.to_string())?;
-    } else {
-        manager.disable().map_err(|e| e.to_string())?;
+    if !autostart::disponible() {
+        return Err(
+            "El inicio automático se activa en la app instalada; la versión de desarrollo no puede arrancar sola."
+                .into(),
+        );
     }
+    autostart::sincronizar(&app, activo)?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     conn.execute(
         "INSERT INTO configuracion (clave, valor) VALUES ('iniciar_al_encender', ?1)
@@ -617,6 +617,8 @@ pub fn eliminar_datos(state: State<AppState>) -> Result<String, String> {
     tx.execute("DELETE FROM venta_items", [])
         .map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM movimientos_inv", [])
+        .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM gastos", [])
         .map_err(|e| e.to_string())?;
     tx.execute("DELETE FROM ventas", [])
         .map_err(|e| e.to_string())?;

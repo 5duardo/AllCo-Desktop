@@ -1,23 +1,16 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
-  ArrowUpRight,
   ChevronsUpDown,
   LifeBuoy,
   LogOut,
-  Mail,
-  MessageCircle,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import {
   BeakerIcon,
-  CalculatorIcon,
-  ChartBarIcon,
-  CircleStackIcon,
   Cog6ToothIcon,
   CubeIcon,
   DocumentTextIcon,
@@ -25,16 +18,11 @@ import {
   IdentificationIcon,
   PrinterIcon,
   ShoppingCartIcon,
-  SignalIcon,
-  TruckIcon,
   UsersIcon,
   WrenchIcon,
 } from "@heroicons/react/24/outline";
 import {
   BeakerIcon as BeakerSolidIcon,
-  CalculatorIcon as CalculatorSolidIcon,
-  ChartBarIcon as ChartBarSolidIcon,
-  CircleStackIcon as CircleStackSolidIcon,
   Cog6ToothIcon as Cog6ToothSolidIcon,
   CubeIcon as CubeSolidIcon,
   DocumentTextIcon as DocumentTextSolidIcon,
@@ -42,8 +30,6 @@ import {
   IdentificationIcon as IdentificationSolidIcon,
   PrinterIcon as PrinterSolidIcon,
   ShoppingCartIcon as ShoppingCartSolidIcon,
-  SignalIcon as SignalSolidIcon,
-  TruckIcon as TruckSolidIcon,
   UsersIcon as UsersSolidIcon,
   WrenchIcon as WrenchSolidIcon,
 } from "@heroicons/react/24/solid";
@@ -78,17 +64,12 @@ const NAV: {
 }[] = [
   { to: "/", label: "Resumen", icon: HomeIcon, iconSolid: HomeSolidIcon, group: "operacion", roles: ["admin", "caja", "bodega"] },
   { to: "/pos", label: "Punto de venta", icon: ShoppingCartIcon, iconSolid: ShoppingCartSolidIcon, group: "operacion", roles: ["admin", "caja"] },
-  { to: "/facturacion", label: "Facturación", icon: DocumentTextIcon, iconSolid: DocumentTextSolidIcon, group: "operacion", roles: ["admin", "caja"] },
+  { to: "/ventas", label: "Ventas", icon: DocumentTextIcon, iconSolid: DocumentTextSolidIcon, group: "operacion", roles: ["admin", "caja"] },
   { to: "/clientes", label: "Clientes", icon: IdentificationIcon, iconSolid: IdentificationSolidIcon, group: "operacion", roles: ["admin", "caja"] },
-  { to: "/talonarios", label: "Talonarios", icon: CalculatorIcon, iconSolid: CalculatorSolidIcon, group: "operacion", roles: ["admin"] },
-  { to: "/inventario", label: "Inventario", icon: CubeIcon, iconSolid: CubeSolidIcon, group: "inventario", roles: ["admin", "bodega"] },
-  { to: "/proveedores", label: "Proveedores", icon: TruckIcon, iconSolid: TruckSolidIcon, group: "inventario", roles: ["admin", "bodega"] },
-  { to: "/servicios", label: "Servicios", icon: WrenchIcon, iconSolid: WrenchSolidIcon, group: "inventario", roles: ["admin"] },
+  { to: "/catalogo", label: "Catálogo", icon: CubeIcon, iconSolid: CubeSolidIcon, group: "inventario", roles: ["admin", "bodega"] },
   { to: "/dispositivos", label: "Dispositivos", icon: PrinterIcon, iconSolid: PrinterSolidIcon, group: "inventario", roles: ["admin", "caja"] },
-  { to: "/empleados", label: "Empleados", icon: UsersIcon, iconSolid: UsersSolidIcon, group: "administracion", roles: ["admin"] },
-  { to: "/reportes", label: "Reportes", icon: ChartBarIcon, iconSolid: ChartBarSolidIcon, group: "administracion", roles: ["admin"] },
-  { to: "/status", label: "Registros", icon: SignalIcon, iconSolid: SignalSolidIcon, group: "administracion", roles: ["admin"] },
-  { to: "/base-datos", label: "Base de datos", icon: CircleStackIcon, iconSolid: CircleStackSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/personas", label: "Personas", icon: UsersIcon, iconSolid: UsersSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/sistema", label: "Sistema", icon: WrenchIcon, iconSolid: WrenchSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/config", label: "Configuración", icon: Cog6ToothIcon, iconSolid: Cog6ToothSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/pruebas", label: "Pruebas", icon: BeakerIcon, iconSolid: BeakerSolidIcon, group: "desarrollo", roles: ["admin"], devOnly: true },
 ];
@@ -131,7 +112,6 @@ export function AppShell() {
     () => localStorage.getItem(COLLAPSE_KEY) === "1",
   );
   const [menuOpen, setMenuOpen] = useState(false);
-  const [soporteOpen, setSoporteOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [marca, setMarca] = useState<MarcaNegocio | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -318,19 +298,19 @@ export function AppShell() {
                 Ayuda
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setSoporteOpen(true)}
+            <NavLink
+              to="/soporte"
               title="Soporte"
               aria-label="Soporte"
-              aria-haspopup="dialog"
-              className={cn(
-                "sidebar-link flex w-full items-center gap-3 rounded-xl py-2.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
-                collapsed ? "px-[19px]" : "px-3",
-                soporteOpen
-                  ? "bg-sidebar-hover text-sidebar-fg"
-                  : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-fg",
-              )}
+              className={({ isActive }) =>
+                cn(
+                  "sidebar-link flex w-full items-center gap-3 rounded-xl py-2.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+                  collapsed ? "px-[19px]" : "px-3",
+                  isActive
+                    ? "bg-sidebar-hover text-sidebar-fg"
+                    : "text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-fg",
+                )
+              }
             >
               <LifeBuoy className="h-[18px] w-[18px] shrink-0" />
               <span
@@ -343,7 +323,7 @@ export function AppShell() {
               >
                 Soporte
               </span>
-            </button>
+            </NavLink>
           </div>
         </nav>
 
@@ -425,7 +405,7 @@ export function AppShell() {
               Nueva versión v{nuevaVersion} disponible.
             </p>
             <Link
-              to="/config"
+              to="/config?tab=sistema"
               className="text-sm font-semibold text-accent-fg underline underline-offset-2 hover:opacity-80"
             >
               Ir a actualizaciones
@@ -434,57 +414,6 @@ export function AppShell() {
         ) : null}
         <Outlet />
       </main>
-
-      <Modal
-        open={soporteOpen}
-        title="Soporte"
-        subtitle="Estamos para ayudarte"
-        onClose={() => setSoporteOpen(false)}
-      >
-        <p className="text-sm text-fg-muted">
-          Contacta al equipo de AllCo por cualquiera de estos medios.
-        </p>
-
-        <div className="mt-4 space-y-2">
-          <button
-            type="button"
-            onClick={() =>
-              openUrl("https://wa.me/50492561515").catch(() =>
-                window.open("https://wa.me/50492561515", "_blank", "noopener"),
-              )
-            }
-            className="flex w-full items-center gap-3 rounded-xl border border-border bg-surface-2 p-3 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-          >
-            <span className="icon-chip">
-              <MessageCircle className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-fg">WhatsApp</span>
-              <span className="block text-sm text-fg-muted">+504 9256 1515</span>
-            </span>
-            <ArrowUpRight className="h-4 w-4 shrink-0 text-fg-faint" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              openUrl("mailto:info@byhyped.com").catch(() =>
-                window.open("mailto:info@byhyped.com"),
-              )
-            }
-            className="flex w-full items-center gap-3 rounded-xl border border-border bg-surface-2 p-3 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-          >
-            <span className="icon-chip">
-              <Mail className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-fg">Correo</span>
-              <span className="block text-sm text-fg-muted">info@byhyped.com</span>
-            </span>
-            <ArrowUpRight className="h-4 w-4 shrink-0 text-fg-faint" />
-          </button>
-        </div>
-      </Modal>
 
       <Modal
         open={confirmLogout}

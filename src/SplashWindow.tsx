@@ -40,17 +40,22 @@ export function SplashWindow() {
 
     let version: string | null = null;
 
-    const consulta = check()
-      .then((u) => {
-        if (!u) return;
-        version = u.version;
-        setEstado("Actualización encontrada");
-        // Queda disponible para la ventana principal, sin volver a consultar.
-        void invoke("guardar_version_disponible", { version: u.version }).catch(
-          () => {},
-        );
-      })
-      .catch(() => {});
+    // En desarrollo no se consulta: la compilación local (v0.2.0) es más
+    // antigua que la publicada y siempre aparecería un aviso de actualización
+    // que además instalaría el exe de release sobre el entorno de desarrollo.
+    const consulta = import.meta.env.DEV
+      ? Promise.resolve()
+      : check()
+          .then((u) => {
+            if (!u) return;
+            version = u.version;
+            setEstado("Actualización encontrada");
+            // Queda disponible para la ventana principal, sin volver a consultar.
+            void invoke("guardar_version_disponible", { version: u.version }).catch(
+              () => {},
+            );
+          })
+          .catch(() => {});
 
     const minimo = new Promise((resolve) => setTimeout(resolve, MIN_MS));
     const limite = new Promise((resolve) => setTimeout(resolve, MAX_MS));
@@ -58,10 +63,21 @@ export function SplashWindow() {
     Promise.race([Promise.all([consulta, minimo]), limite])
       .then(async () => {
         const principal = await Window.getByLabel("main").catch(() => null);
+        let mostrada = false;
         if (principal) {
+          // Traerla al frente aunque Windows haya arrancado la app en segundo
+          // plano (inicio automático): mostrarla, enfocarla y subirla un instante.
           await principal.unminimize().catch(() => {});
           await principal.show().catch(() => {});
+          await principal.setAlwaysOnTop(true).catch(() => {});
           await principal.setFocus().catch(() => {});
+          await principal.setAlwaysOnTop(false).catch(() => {});
+          mostrada = await principal.isVisible().catch(() => false);
+        }
+        if (!mostrada) {
+          // El respaldo de Rust muestra la ventana principal y cierra el splash.
+          setEstado("Abriendo AllCo…");
+          return;
         }
         if (version) {
           await emitTo("main", "allco:update", version).catch(() => {});

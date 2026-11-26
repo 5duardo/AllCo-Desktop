@@ -11,12 +11,16 @@ import type {
   EmpleadoIn,
   EstadoPruebas,
   EventoSistema,
+  FavoritoDispositivo,
+  Gasto,
+  GastoIn,
   MarcaNegocio,
   Movimiento,
   Producto,
   Proveedor,
   ProveedorIn,
   ReporteVentas,
+  ResumenFinanzas,
   ResumenVentas,
   Servicio,
   StatusSistema,
@@ -125,6 +129,18 @@ export const api = {
     invoke<ResumenVentas>("resumen_ventas", { desde, hasta }),
   productosStockMinimo: () => invoke<Producto[]>("productos_stock_minimo"),
 
+  listarGastos: (desde?: string, hasta?: string, categoria?: string) =>
+    invoke<Gasto[]>("listar_gastos", {
+      desde: desde || null,
+      hasta: hasta || null,
+      categoria: categoria || null,
+    }),
+  guardarGasto: (data: GastoIn) => invoke<number>("guardar_gasto", { data }),
+  eliminarGasto: (gastoId: number) =>
+    invoke<void>("eliminar_gasto", { gastoId }),
+  resumenFinanzas: (desde: string, hasta: string) =>
+    invoke<ResumenFinanzas>("resumen_finanzas", { desde, hasta }),
+
   listarUsuarios: () => invoke<Usuario[]>("listar_usuarios"),
   guardarUsuario: (data: Record<string, unknown>) =>
     invoke<number>("guardar_usuario", { data }),
@@ -145,6 +161,10 @@ export const api = {
 
   listarDispositivos: () => invoke<DispositivosData>("listar_dispositivos"),
   actualizarDispositivos: () => invoke<DispositivosData>("actualizar_dispositivos"),
+  listarFavoritosDispositivo: () =>
+    invoke<FavoritoDispositivo[]>("listar_favoritos_dispositivo"),
+  alternarFavoritoDispositivo: (tipo: string, nombre: string, clase: string) =>
+    invoke<boolean>("alternar_favorito_dispositivo", { tipo, nombre, clase }),
   guardarImpresoraTicket: (
     nombre: string,
     modo?: "usb" | "spooler",

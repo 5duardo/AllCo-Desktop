@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -33,7 +34,7 @@ function iso(d: Date) {
 const HOY = iso(new Date());
 const INICIO_MES = iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
-export function FacturacionPage() {
+export function FacturacionPage({ sinHero = false, sinPage = false }: { sinHero?: boolean; sinPage?: boolean }) {
   const toast = useToast();
   const { user, puede } = useAuth();
   const esAdmin = user?.rol === "admin";
@@ -134,15 +135,15 @@ export function FacturacionPage() {
   }
 
   return (
-    <div className="page">
-      <PageHero
+    <div className={sinPage ? undefined : "page"}>
+      {sinHero ? null : <PageHero
         title="Facturación"
         subtitle="Facturas emitidas, reimpresión y anulación"
         description="Consulta las facturas por periodo, cliente o número, revisa el ticket, reimprímelo o anula una venta."
         icon={ReceiptText}
-      />
+      />}
 
-      <Card className="mb-4 flex flex-wrap items-end gap-3 p-4">
+      <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="w-40">
           <Label>Desde</Label>
           <DatePicker value={desde} onChange={setDesde} />
@@ -175,7 +176,7 @@ export function FacturacionPage() {
           <RefreshCw className={cargando ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
           {cargando ? "Cargando…" : "Actualizar"}
         </Button>
-      </Card>
+      </div>
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
@@ -278,7 +279,7 @@ export function FacturacionPage() {
             </tbody>
           </table>
           {filtradas.length === 0 ? (
-            <p className="empty-state">No hay facturas con ese criterio.</p>
+            <EmptyState>No hay facturas con ese criterio.</EmptyState>
           ) : null}
         </div>
 

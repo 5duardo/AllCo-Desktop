@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Banknote, CheckCircle2, CreditCard, Landmark, LayoutGrid, List, Maximize2, Minimize2, Package, Printer, ReceiptText, Search, ShoppingCart, Trash2, UserPlus, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
@@ -441,7 +442,7 @@ export function PosPage() {
           <div ref={catalogoScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
               {catalogo === "productos" ? (
                 productosFiltrados.length === 0 ? (
-                  <p className="empty-state">No hay productos para ese criterio.</p>
+                  <EmptyState>No hay productos para ese criterio.</EmptyState>
                 ) : vistaCatalogo === "lista" ? (
                   <div key="lista-productos" className="divide-y divide-border overflow-hidden rounded-xl border border-border">
                     {productosFiltrados.map((p) => (
@@ -529,7 +530,7 @@ export function PosPage() {
                   </div>
                 )
               ) : serviciosFiltrados.length === 0 ? (
-                <p className="empty-state">No hay servicios para ese criterio.</p>
+                <EmptyState>No hay servicios para ese criterio.</EmptyState>
               ) : vistaCatalogo === "lista" ? (
                 <div key="lista-servicios" className="divide-y divide-border overflow-hidden rounded-xl border border-border">
                   {serviciosFiltrados.map((s) => (

@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useState, type FormEvent } from "react";
 import { Clock, Pencil, Plus, Wrench } from "lucide-react";
 import { api } from "@/lib/api";
@@ -20,7 +21,7 @@ const empty = {
   activo: true,
 };
 
-export function ServiciosPage() {
+export function ServiciosPage({ sinHero = false, sinPage = false }: { sinHero?: boolean; sinPage?: boolean }) {
   const toast = useToast();
   const { puede } = useAuth();
   const [rows, setRows] = useState<Servicio[]>([]);
@@ -48,14 +49,14 @@ export function ServiciosPage() {
   }
 
   return (
-    <div className="page">
-      <PageHero
+    <div className={sinPage ? undefined : "page"}>
+      {sinHero ? null : <PageHero
         title="Servicios"
         subtitle="Catálogo de servicios: precios y tiempos estimados"
         description="Administra los servicios que se venden en Caja, con su precio y duración estimada."
         icon={Wrench}
         badge={`${rows.length} servicios`}
-      />
+      />}
       <div className="mb-4 flex flex-wrap justify-end gap-2">
         {puede("/servicios", "crear") ? (
           <Button
@@ -108,7 +109,7 @@ export function ServiciosPage() {
       </div>
       {rows.length === 0 ? (
         <Card>
-          <p className="empty-state">Todavía no hay servicios en el catálogo.</p>
+          <EmptyState>Todavía no hay servicios en el catálogo.</EmptyState>
         </Card>
       ) : null}
 
