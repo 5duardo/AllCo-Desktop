@@ -1,4 +1,4 @@
-use crate::commands::auth::{require_accion, require_roles, require_user};
+use crate::commands::auth::{puede_ver_venta, require_accion, require_roles, require_user};
 use crate::db;
 use crate::models::FavoritoDispositivo;
 use crate::AppState;
@@ -746,6 +746,7 @@ pub fn imprimir_factura(
     modo: Option<String>,
 ) -> Result<String, String> {
     let user = require_roles(&state, &["admin", "caja"])?;
+    puede_ver_venta(&state, venta_id)?;
     let path = state
         .data_dir
         .join("tickets")

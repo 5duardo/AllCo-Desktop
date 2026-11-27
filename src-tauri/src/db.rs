@@ -599,6 +599,7 @@ pub fn marca_negocio(conn: &Connection) -> Result<MarcaNegocio, String> {
     Ok(MarcaNegocio {
         mostrar_logo_factura: cfg.ticket_mostrar_logo == "1",
         nombre: cfg.negocio_nombre,
+        direccion: cfg.negocio_direccion,
         logo: cfg.negocio_logo,
     })
 }

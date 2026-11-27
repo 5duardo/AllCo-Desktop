@@ -10,7 +10,6 @@ import {
   Receipt,
   ShoppingCart,
   TrendingUp,
-  Warehouse,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -219,7 +218,10 @@ export function DashboardPage() {
   const [error, setError] = useState("");
   const [verTodasAlertas, setVerTodasAlertas] = useState(false);
 
-  const rangoActual = useMemo(() => rango(periodo), [periodo]);
+  const rangoActual = useMemo(
+    () => rango(isCaja ? "hoy" : periodo),
+    [periodo, isCaja],
+  );
   const periodoLabel =
     PERIODOS.find((p) => p.id === periodo)?.label ?? "Hoy";
   const rangoTexto =
@@ -295,7 +297,11 @@ export function DashboardPage() {
             ? "Estado del inventario de tu operación."
             : "Rendimiento consolidado de tu operación."
         }`}
-        description="Vista consolidada de ventas, actividad y alertas del negocio. Cambia el periodo para analizar otros rangos."
+        description={
+          isCaja
+            ? "Vista de las ventas de hoy, actividad y alertas del negocio."
+            : "Vista consolidada de ventas, actividad y alertas del negocio. Cambia el periodo para analizar otros rangos."
+        }
         icon={BarChart3}
         badge={`${periodoLabel} · ${rangoTexto}`}
       />
@@ -303,24 +309,30 @@ export function DashboardPage() {
       {/* Filtros y accesos */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {verVentas ? (
-          <div className="flex flex-wrap gap-1.5">
-            {PERIODOS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setPeriodo(p.id)}
-                aria-pressed={periodo === p.id}
-                className={cn(
-                  "rounded-full border px-3.5 py-1.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
-                  periodo === p.id
-                    ? "border-accent bg-accent text-on-accent"
-                    : "border-border bg-surface-2 text-fg-muted hover:bg-hover hover:text-fg",
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          isCaja ? (
+            <span className="rounded-full border border-accent bg-accent-soft px-3.5 py-1.5 text-xs font-semibold text-accent-fg">
+              Solo ventas de hoy
+            </span>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {PERIODOS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPeriodo(p.id)}
+                  aria-pressed={periodo === p.id}
+                  className={cn(
+                    "rounded-full border px-3.5 py-1.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+                    periodo === p.id
+                      ? "border-accent bg-accent text-on-accent"
+                      : "border-border bg-surface-2 text-fg-muted hover:bg-hover hover:text-fg",
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )
         ) : (
           <span className="text-sm text-fg-muted">
             Inventario y alertas de stock
@@ -332,22 +344,6 @@ export function DashboardPage() {
           </span>
           {cargandoResumen && verVentas ? (
             <span className="text-xs text-fg-muted">Actualizando…</span>
-          ) : null}
-          {!isBodega ? (
-            <Link to="/pos">
-              <Button size="sm">
-                <ShoppingCart className="h-4 w-4" />
-                Ir a caja
-              </Button>
-            </Link>
-          ) : null}
-          {!isCaja ? (
-            <Link to="/catalogo?tab=productos">
-              <Button variant="secondary" size="sm">
-                <Warehouse className="h-4 w-4" />
-                Inventario
-              </Button>
-            </Link>
           ) : null}
         </div>
       </div>
@@ -426,7 +422,7 @@ export function DashboardPage() {
         {verVentas ? (
           <Card className="overflow-hidden">
             <div className="flex items-center justify-between bg-surface-2 px-5 py-4">
-              <h2 className="card-title">Últimas ventas</h2>
+              <h2 className="card-title">{isCaja ? "Ventas de hoy" : "Últimas ventas"}</h2>
               <Badge tone="accent">
                 {data?.ultimas_ventas.length ?? 0} recientes
               </Badge>

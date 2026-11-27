@@ -23,7 +23,8 @@ const empty: ClienteIn = {
 
 export function ClientesPage() {
   const toast = useToast();
-  const { puede } = useAuth();
+  const { user, puede } = useAuth();
+  const esCaja = user?.rol === "caja";
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Cliente[]>([]);
   const [open, setOpen] = useState(false);
@@ -233,11 +234,13 @@ export function ClientesPage() {
 
       <Modal
         open={!!clienteSel}
-        title={`Facturas · ${clienteSel?.nombre ?? ""}`}
+        title={`${esCaja ? "Facturas de hoy" : "Facturas"} · ${clienteSel?.nombre ?? ""}`}
         subtitle={
-          clienteSel
-            ? `${clienteSel.facturas} facturas · ${lempiras(clienteSel.total_comprado)}`
-            : undefined
+          !clienteSel
+            ? undefined
+            : esCaja
+              ? "Solo ventas del día actual"
+              : `${clienteSel.facturas} facturas · ${lempiras(clienteSel.total_comprado)}`
         }
         onClose={() => setClienteSel(null)}
         wide
@@ -245,7 +248,11 @@ export function ClientesPage() {
         {cargandoFacturas ? (
           <p className="text-sm text-fg-muted">Cargando facturas…</p>
         ) : facturas.length === 0 ? (
-          <EmptyState>Este cliente todavía no tiene facturas.</EmptyState>
+          <EmptyState>
+            {esCaja
+              ? "Este cliente no tiene facturas hoy."
+              : "Este cliente todavía no tiene facturas."}
+          </EmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="table">

@@ -11,6 +11,8 @@ type AuthCtx = {
   puede: (modulo: string, accion: string) => boolean;
   recargarPermisos: () => Promise<void>;
   login: (usuario: string, password: string) => Promise<void>;
+  /** Cierra la sesión actual y entra con otra cuenta sin salir de la app. */
+  cambiarCuenta: (usuario: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -54,6 +56,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await cargarPermisos();
   }
 
+  async function cambiarCuenta(usuario: string, password: string) {
+    const u = await api.cambiarCuenta(usuario, password);
+    setUser(u);
+    await cargarPermisos();
+  }
+
   async function logout() {
     await api.logout();
     setUser(null);
@@ -82,7 +90,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider
-      value={{ user, ready, permisos, tieneAcceso, puede, recargarPermisos: cargarPermisos, login, logout }}
+      value={{
+        user,
+        ready,
+        permisos,
+        tieneAcceso,
+        puede,
+        recargarPermisos: cargarPermisos,
+        login,
+        cambiarCuenta,
+        logout,
+      }}
     >
       {children}
     </Ctx.Provider>

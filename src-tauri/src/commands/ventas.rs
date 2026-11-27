@@ -1,4 +1,6 @@
-use crate::commands::auth::{require_accion, require_roles, require_user};
+use crate::commands::auth::{
+    puede_ver_venta, rango_ventas, require_accion, require_roles, require_user,
+};
 use crate::db;
 use crate::models::{ConfigApp, VentaIn, VentaListado, VentaResultado};
 use crate::AppState;
@@ -493,9 +495,8 @@ pub fn listar_ventas(
     hasta: Option<String>,
 ) -> Result<Vec<VentaListado>, String> {
     require_roles(&state, &["admin", "caja"])?;
+    let (d, h) = rango_ventas(&state, desde, hasta);
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
-    let d = desde.unwrap_or_else(|| "2000-01-01".into());
-    let h = hasta.unwrap_or_else(|| "2100-12-31".into());
     let mut stmt = conn
         .prepare(
             "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
@@ -517,6 +518,7 @@ pub fn listar_ventas(
 #[tauri::command]
 pub fn obtener_ticket(state: State<AppState>, venta_id: i64) -> Result<String, String> {
     require_user(&state)?;
+    puede_ver_venta(&state, venta_id)?;
     let path = state.data_dir.join("tickets").join(format!("ticket-{venta_id}.txt"));
     fs::read_to_string(&path).map_err(|_| "No hay copia de la factura.".to_string())
 }

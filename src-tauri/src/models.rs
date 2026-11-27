@@ -372,6 +372,8 @@ fn ticket_si_default() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarcaNegocio {
     pub nombre: String,
+    /// Dirección / ubicación del negocio, configurable en Configuración.
+    pub direccion: String,
     pub logo: Option<String>,
     /// Si el logo también se imprime en la factura.
     pub mostrar_logo_factura: bool,

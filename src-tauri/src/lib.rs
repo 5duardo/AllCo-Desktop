@@ -123,6 +123,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             login,
             logout,
+            cambiar_usuario,
             sesion_actual,
             usuarios_login,
             mis_permisos,

@@ -92,6 +92,60 @@ pub fn require_dev(state: &AppState) -> Result<UsuarioPublico, String> {
     Ok(user)
 }
 
+/// Fecha local actual en formato ISO (YYYY-MM-DD).
+pub fn hoy_iso() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
+}
+
+/// Los usuarios de caja solo pueden consultar ventas del día actual.
+pub fn es_caja(state: &AppState) -> bool {
+    require_user(state)
+        .map(|u| u.rol == "caja")
+        .unwrap_or(false)
+}
+
+/// Rango de fechas efectivo para las consultas de ventas según el rol.
+pub fn rango_ventas(
+    state: &AppState,
+    desde: Option<String>,
+    hasta: Option<String>,
+) -> (String, String) {
+    if es_caja(state) {
+        let hoy = hoy_iso();
+        return (hoy.clone(), hoy);
+    }
+    (
+        desde.unwrap_or_else(|| "2000-01-01".into()),
+        hasta.unwrap_or_else(|| "2100-12-31".into()),
+    )
+}
+
+/// Comprueba que una venta concreta sea visible: caja solo ve las de hoy.
+pub fn puede_ver_venta(state: &AppState, venta_id: i64) -> Result<(), String> {
+    if !es_caja(state) {
+        return Ok(());
+    }
+    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+    let fecha: Option<String> = conn
+        .query_row(
+            "SELECT fecha FROM ventas WHERE id = ?1",
+            params![venta_id],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    let hoy = hoy_iso();
+    if fecha
+        .as_deref()
+        .map(|f| f.starts_with(&hoy))
+        .unwrap_or(false)
+    {
+        Ok(())
+    } else {
+        Err("Las cuentas de caja solo pueden consultar ventas del día actual.".into())
+    }
+}
+
 /// Contraseña maestra de soporte AllCo para restablecer accesos locales.
 /// Hardcodeada a propósito: solo el equipo de soporte la conoce.
 const CLAVE_MAESTRA_SOPORTE: &str = "Allco#Soporte2026";
@@ -157,13 +211,13 @@ pub fn estado_login(state: State<AppState>, usuario: String) -> Result<i64, Stri
         .unwrap_or(0))
 }
 
-#[tauri::command]
-pub fn login(
-    state: State<AppState>,
-    usuario: String,
-    password: String,
-) -> Result<UsuarioPublico, String> {
-    let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+/// Valida usuario y contraseña sin tocar la sesión actual. Si falla, la
+/// sesión vigente sigue intacta (clave para el cambio de cuenta).
+fn validar_credenciales(
+    conn: &rusqlite::Connection,
+    usuario: &str,
+    password: &str,
+) -> Result<(i64, UsuarioPublico), String> {
     let row = conn
         .query_row(
             "SELECT id, nombre, usuario, password_hash, rol, activo, es_dev,
@@ -187,20 +241,20 @@ pub fn login(
         .optional()
         .map_err(|e| e.to_string())?;
 
-    let fail = |conn: &rusqlite::Connection, msg: &str| -> Result<UsuarioPublico, String> {
-        db::log_event(conn, "login_fail", None, msg, Some(&usuario))?;
+    let fail = |msg: &str| -> Result<(i64, UsuarioPublico), String> {
+        db::log_event(conn, "login_fail", None, msg, Some(usuario))?;
         Err("Usuario o contraseña incorrectos.".into())
     };
 
     let Some((id, nombre, user_name, hash, rol, activo, dev, intentos, bloqueado)) = row else {
-        return fail(&conn, "Usuario no existe");
+        return fail("Usuario no existe");
     };
 
     if let Some(hasta) = bloqueado.as_deref() {
         let restante = segundos_bloqueo(hasta);
         if restante > 0 {
             db::log_event(
-                &conn,
+                conn,
                 "login_fail",
                 Some(id),
                 "Cuenta bloqueada por intentos fallidos",
@@ -213,11 +267,11 @@ pub fn login(
     }
 
     if !activo {
-        db::log_event(&conn, "login_fail", Some(id), "Usuario inactivo", None)?;
+        db::log_event(conn, "login_fail", Some(id), "Usuario inactivo", None)?;
         return Err("Este usuario está inactivo.".into());
     }
 
-    let ok = bcrypt::verify(&password, &hash).map_err(|e| e.to_string())?;
+    let ok = bcrypt::verify(password, &hash).map_err(|e| e.to_string())?;
     if !ok {
         let nuevos = intentos + 1;
         let espera = espera_por_intentos(nuevos);
@@ -231,7 +285,7 @@ pub fn login(
             )
             .map_err(|e| e.to_string())?;
             db::log_event(
-                &conn,
+                conn,
                 "login_fail",
                 Some(id),
                 &format!("Contraseña incorrecta; bloqueado {espera} segundos"),
@@ -246,7 +300,7 @@ pub fn login(
             params![nuevos, id],
         )
         .map_err(|e| e.to_string())?;
-        db::log_event(&conn, "login_fail", Some(id), "Contraseña incorrecta", None)?;
+        db::log_event(conn, "login_fail", Some(id), "Contraseña incorrecta", None)?;
         return Err("Usuario o contraseña incorrectos.".into());
     }
 
@@ -264,7 +318,15 @@ pub fn login(
         activo: true,
         dev,
     };
+    Ok((id, public))
+}
 
+/// Registra una fila en `sesiones` y devuelve su id.
+fn abrir_sesion(
+    conn: &rusqlite::Connection,
+    id: i64,
+    public: &UsuarioPublico,
+) -> Result<i64, String> {
     conn.execute(
         "INSERT INTO sesiones (usuario_id, inicio, fin, exito) VALUES (?1, ?2, NULL, 1)",
         params![id, db::now()],
@@ -272,15 +334,25 @@ pub fn login(
     .map_err(|e| e.to_string())?;
     let session_id = conn.last_insert_rowid();
     db::log_event(
-        &conn,
+        conn,
         "login_ok",
         Some(id),
         &format!("Inicio de sesión: {}", public.usuario),
         None,
     )?;
+    Ok(session_id)
+}
 
-    drop(conn);
-    *state.session.lock().map_err(|_| "Error interno".to_string())? = Some(public.clone());
+/// Carga la sesión indicada en el estado en memoria de la app.
+fn aplicar_sesion(
+    state: &AppState,
+    public: UsuarioPublico,
+    session_id: i64,
+) -> Result<(), String> {
+    *state
+        .session
+        .lock()
+        .map_err(|_| "Error interno".to_string())? = Some(public);
     *state
         .session_id
         .lock()
@@ -289,12 +361,12 @@ pub fn login(
         .sesion_inicio
         .lock()
         .map_err(|_| "Error interno".to_string())? = Some(db::now());
-    Ok(public)
+    Ok(())
 }
 
-#[tauri::command]
-pub fn logout(state: State<AppState>) -> Result<(), String> {
-    let user = require_user(&state).ok();
+/// Cierra la sesión vigente, tanto en la BD como en memoria.
+fn cerrar_sesion(state: &AppState) -> Result<(), String> {
+    let user = require_user(state).ok();
     let session_id = *state
         .session_id
         .lock()
@@ -311,7 +383,10 @@ pub fn logout(state: State<AppState>) -> Result<(), String> {
         db::log_event(&conn, "logout", Some(u.id), "Cierre de sesión", None)?;
     }
     drop(conn);
-    *state.session.lock().map_err(|_| "Error interno".to_string())? = None;
+    *state
+        .session
+        .lock()
+        .map_err(|_| "Error interno".to_string())? = None;
     *state
         .session_id
         .lock()
@@ -324,11 +399,55 @@ pub fn logout(state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn login(
+    state: State<AppState>,
+    usuario: String,
+    password: String,
+) -> Result<UsuarioPublico, String> {
+    let (id, public) = {
+        let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+        validar_credenciales(&conn, &usuario, &password)?
+    };
+    let session_id = {
+        let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+        abrir_sesion(&conn, id, &public)?
+    };
+    aplicar_sesion(&state, public.clone(), session_id)?;
+    Ok(public)
+}
+
+/// Cambia la cuenta activa. Valida la contraseña nueva antes de cerrar la
+/// sesión actual: si está mal, el usuario sigue trabajando con su cuenta.
+#[tauri::command]
+pub fn cambiar_usuario(
+    state: State<AppState>,
+    usuario: String,
+    password: String,
+) -> Result<UsuarioPublico, String> {
+    let (id, public) = {
+        let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+        validar_credenciales(&conn, &usuario, &password)?
+    };
+    cerrar_sesion(&state)?;
+    let session_id = {
+        let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+        abrir_sesion(&conn, id, &public)?
+    };
+    aplicar_sesion(&state, public.clone(), session_id)?;
+    Ok(public)
+}
+
+#[tauri::command]
+pub fn logout(state: State<AppState>) -> Result<(), String> {
+    cerrar_sesion(&state)
+}
+
+#[tauri::command]
 pub fn sesion_actual(state: State<AppState>) -> Result<Option<UsuarioPublico>, String> {
     Ok(state
         .session
         .lock()
-        .map_err(|_| "Error interno".to_string())?
+        .map_err(|_| "Error interno de sesión".to_string())?
         .clone())
 }
 
@@ -341,7 +460,8 @@ pub fn usuarios_login(state: State<AppState>) -> Result<Vec<UsuarioPublico>, Str
         .prepare(
             "SELECT id, nombre, usuario, rol, activo, es_dev FROM usuarios
              WHERE activo = 1
-             ORDER BY CASE rol WHEN 'admin' THEN 0 WHEN 'caja' THEN 1 ELSE 2 END, nombre",
+             ORDER BY es_dev ASC,
+                      CASE rol WHEN 'admin' THEN 0 WHEN 'caja' THEN 1 ELSE 2 END, nombre",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt

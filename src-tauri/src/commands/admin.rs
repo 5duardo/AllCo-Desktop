@@ -20,7 +20,10 @@ pub fn listar_usuarios(state: State<AppState>) -> Result<Vec<UsuarioPublico>, St
     require_roles(&state, &["admin"])?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, nombre, usuario, rol, activo, es_dev FROM usuarios ORDER BY nombre")
+        .prepare(
+            "SELECT id, nombre, usuario, rol, activo, es_dev FROM usuarios
+             ORDER BY es_dev ASC, nombre ASC",
+        )
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], db::usuario_from_row)

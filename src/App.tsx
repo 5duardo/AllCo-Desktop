@@ -40,7 +40,11 @@ function Protected({ roles }: { roles?: Rol[] }) {
   if (roles && permisos === null && !roles.includes(user.rol)) {
     return <Navigate to="/" replace />;
   }
-  const exento = pathname === "/usuarios" || pathname === "/pruebas";
+  // Soporte es un enlace de ayuda para todos los usuarios, no un módulo configurable.
+  const exento =
+    pathname === "/soporte" ||
+    pathname === "/usuarios" ||
+    pathname === "/pruebas";
   if (permisos !== null && !exento && !tieneAcceso(pathname)) {
     return <Navigate to="/" replace />;
   }

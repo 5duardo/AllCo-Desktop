@@ -38,8 +38,9 @@ export function FacturacionPage({ sinHero = false, sinPage = false }: { sinHero?
   const toast = useToast();
   const { user, puede } = useAuth();
   const esAdmin = user?.rol === "admin";
+  const esCaja = user?.rol === "caja";
 
-  const [desde, setDesde] = useState(INICIO_MES);
+  const [desde, setDesde] = useState(esCaja ? HOY : INICIO_MES);
   const [hasta, setHasta] = useState(HOY);
   const [estado, setEstado] = useState("todas");
   const [busqueda, setBusqueda] = useState("");
@@ -57,7 +58,7 @@ export function FacturacionPage({ sinHero = false, sinPage = false }: { sinHero?
   async function cargar() {
     setCargando(true);
     try {
-      setVentas(await api.listarVentas(desde, hasta));
+      setVentas(await api.listarVentas(esCaja ? HOY : desde, hasta));
       setVerTodas(false);
     } catch (e) {
       toast.error(String(e));
@@ -144,14 +145,28 @@ export function FacturacionPage({ sinHero = false, sinPage = false }: { sinHero?
       />}
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="w-40">
-          <Label>Desde</Label>
-          <DatePicker value={desde} onChange={setDesde} />
-        </div>
-        <div className="w-40">
-          <Label>Hasta</Label>
-          <DatePicker value={hasta} onChange={setHasta} />
-        </div>
+        {esCaja ? (
+          <div className="w-44">
+            <Label>Fecha</Label>
+            <div
+              className="flex h-11 items-center rounded-xl border border-border bg-surface-2 px-3 text-sm font-medium tabular-nums text-fg-muted"
+              title="Las cuentas de caja solo ven ventas del día actual"
+            >
+              Hoy · {HOY.split("-").reverse().join("/")}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="w-40">
+              <Label>Desde</Label>
+              <DatePicker value={desde} onChange={setDesde} />
+            </div>
+            <div className="w-40">
+              <Label>Hasta</Label>
+              <DatePicker value={hasta} onChange={setHasta} />
+            </div>
+          </>
+        )}
         <div className="w-44">
           <Label>Estado</Label>
           <Select value={estado} onChange={(e) => setEstado(e.target.value)}>

@@ -1,4 +1,4 @@
-use crate::commands::auth::require_roles;
+use crate::commands::auth::{rango_ventas, require_roles};
 use crate::db::{self, PRODUCTO_SELECT};
 use crate::models::{
     DashboardData, DiaVenta, Producto, ReporteVentas, ResumenVentas, TotalesGrupo,
@@ -27,6 +27,7 @@ pub fn dashboard(state: State<AppState>) -> Result<DashboardData, String> {
     let user = require_roles(&state, &["admin", "caja", "bodega"])?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let show_sales = user.rol != "bodega";
+    let solo_hoy = user.rol == "caja";
 
     let ventas_hoy: f64 = if show_sales {
         conn.query_row(
@@ -39,7 +40,7 @@ pub fn dashboard(state: State<AppState>) -> Result<DashboardData, String> {
     } else {
         0.0
     };
-    let ventas_semana: f64 = if show_sales {
+    let ventas_semana: f64 = if show_sales && !solo_hoy {
         conn.query_row(
             "SELECT COALESCE(SUM(total),0) FROM ventas
              WHERE estado = 'completada' AND datetime(fecha) >= datetime('now','localtime','-7 days')",
@@ -76,15 +77,20 @@ pub fn dashboard(state: State<AppState>) -> Result<DashboardData, String> {
 
     let mut ultimas = Vec::new();
     if show_sales {
-        let mut stmt = conn
-            .prepare(
-                "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
-                        (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
-                 FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
-                 LEFT JOIN clientes c ON c.id = v.cliente_id
-                 ORDER BY v.id DESC LIMIT 8",
-            )
-            .map_err(|e| e.to_string())?;
+        let filtro = if solo_hoy {
+            " WHERE date(v.fecha) = date('now','localtime')"
+        } else {
+            ""
+        };
+        let sql = format!(
+            "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
+                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
+             FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
+             LEFT JOIN clientes c ON c.id = v.cliente_id
+             {filtro}
+             ORDER BY v.id DESC LIMIT 8"
+        );
+        let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
         ultimas = stmt
             .query_map([], venta_row)
             .map_err(|e| e.to_string())?
@@ -260,6 +266,8 @@ pub fn resumen_ventas(
     hasta: String,
 ) -> Result<ResumenVentas, String> {
     require_roles(&state, &["admin", "caja"])?;
+    // Caja siempre queda limitado al día actual, aunque envíe otro rango.
+    let (desde, hasta) = rango_ventas(&state, Some(desde), Some(hasta));
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
 
     let (total, cantidad): (f64, i64) = conn

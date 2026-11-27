@@ -274,6 +274,7 @@ export type ConfigApp = {
 
 export type MarcaNegocio = {
   nombre: string;
+  direccion: string;
   logo: string | null;
   mostrar_logo_factura: boolean;
 };

@@ -3,11 +3,15 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   ChevronsUpDown,
   LifeBuoy,
+  Loader2,
+  LogIn,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  UsersRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input, Label } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import {
   BeakerIcon,
@@ -36,11 +40,12 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useFullscreen } from "@/context/FullscreenContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useToast } from "@/context/ToastContext";
 import { useUpdates } from "@/context/UpdateContext";
 import { BrandLogo } from "@/components/BrandLogo";
 import { api } from "@/lib/api";
 import { rolLabel } from "@/lib/format";
-import type { MarcaNegocio, Rol } from "@/lib/types";
+import type { MarcaNegocio, Rol, Usuario } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type NavIcon = ComponentType<{ className?: string }>;
@@ -76,6 +81,16 @@ const NAV: {
 
 const COLLAPSE_KEY = "allco-sidebar-collapsed";
 
+function iniciales(nombre: string) {
+  return nombre
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase();
+}
+
 function ProfileMenuItem({
   icon: Icon,
   label,
@@ -103,16 +118,24 @@ function ProfileMenuItem({
 }
 
 export function AppShell() {
-  const { user, logout, permisos, tieneAcceso } = useAuth();
+  const { user, logout, cambiarCuenta, permisos, tieneAcceso } = useAuth();
   const { accent, resolvedMode } = useTheme();
   const { pantallaCompleta } = useFullscreen();
   const { nuevaVersion } = useUpdates();
+  const toast = useToast();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem(COLLAPSE_KEY) === "1",
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [cambiarOpen, setCambiarOpen] = useState(false);
+  const [cuentas, setCuentas] = useState<Usuario[]>([]);
+  const [cargandoCuentas, setCargandoCuentas] = useState(false);
+  const [cuentaSel, setCuentaSel] = useState("");
+  const [claveCuenta, setClaveCuenta] = useState("");
+  const [cambiando, setCambiando] = useState(false);
+  const [errorCuenta, setErrorCuenta] = useState("");
   const [marca, setMarca] = useState<MarcaNegocio | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -149,11 +172,61 @@ export function AppShell() {
     };
   }, [menuOpen]);
 
+  // Carga las cuentas disponibles cada vez que se abre el cambio de cuenta.
+  useEffect(() => {
+    if (!cambiarOpen || !user) return;
+    let vigente = true;
+    setCuentaSel("");
+    setClaveCuenta("");
+    setErrorCuenta("");
+    setCargandoCuentas(true);
+    api
+      .usuariosLogin()
+      .then((list) => {
+        if (vigente) setCuentas(list.filter((u) => u.id !== user.id));
+      })
+      .catch((e) => {
+        if (vigente)
+          setErrorCuenta(`No se pudieron cargar las cuentas: ${String(e)}`);
+      })
+      .finally(() => {
+        if (vigente) setCargandoCuentas(false);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [cambiarOpen, user]);
+
   if (!user) return null;
 
   async function onLogout() {
     await logout();
     navigate("/login");
+  }
+
+  async function onCambiarCuenta() {
+    if (!cuentaSel) {
+      setErrorCuenta("Seleccione una cuenta.");
+      return;
+    }
+    if (!claveCuenta) {
+      setErrorCuenta("Ingrese la contraseña de la cuenta.");
+      return;
+    }
+    setCambiando(true);
+    setErrorCuenta("");
+    const nombre = cuentas.find((c) => c.usuario === cuentaSel)?.nombre ?? cuentaSel;
+    try {
+      await cambiarCuenta(cuentaSel, claveCuenta);
+      setCambiarOpen(false);
+      setClaveCuenta("");
+      toast.ok(`Sesión iniciada como ${nombre}.`);
+      navigate("/");
+    } catch (err) {
+      setErrorCuenta(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCambiando(false);
+    }
   }
 
   const items = NAV.filter((n) => {
@@ -162,16 +235,12 @@ export function AppShell() {
     return n.roles.includes(user.rol);
   });
   const nombreNegocio = marca?.nombre?.trim() || "AllCo";
+  const ubicacionNegocio = marca?.direccion?.trim() || "";
   // El acento neutro es negro en tema claro: sobre el sidebar oscuro
   // necesita un fondo translúcido para que el ítem activo se distinga.
   const neutralOnDarkSidebar = accent === "neutro" && resolvedMode === "light";
-  const initials = user.nombre
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join("")
-    .toUpperCase();
+  const initials = iniciales(user.nombre);
+  const cuentaElegida = cuentas.find((c) => c.usuario === cuentaSel);
 
   return (
     <div className="flex h-full overflow-hidden bg-bg">
@@ -202,7 +271,13 @@ export function AppShell() {
             "flex items-center gap-3 overflow-hidden py-5 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
             collapsed ? "px-[18px]" : "px-5",
           )}
-          title={collapsed ? nombreNegocio : undefined}
+          title={
+            collapsed
+              ? ubicacionNegocio
+                ? `${nombreNegocio} · ${ubicacionNegocio}`
+                : nombreNegocio
+              : undefined
+          }
         >
           <BrandLogo
             logo={marca?.logo}
@@ -220,8 +295,15 @@ export function AppShell() {
             <p className="truncate whitespace-nowrap text-base font-bold leading-tight">
               {nombreNegocio}
             </p>
-            <p className="truncate whitespace-nowrap text-[11px] text-sidebar-muted">
-              Impulsado por <span className="font-medium text-sidebar-fg">AllCo</span>
+            <p
+              className="truncate whitespace-nowrap text-[11px] text-sidebar-muted"
+              title={ubicacionNegocio || undefined}
+            >
+              {ubicacionNegocio || (
+                <>
+                  Impulsado por <span className="font-medium text-sidebar-fg">AllCo</span>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -340,6 +422,14 @@ export function AppShell() {
               role="menu"
             >
               <ProfileMenuItem
+                icon={UsersRound}
+                label="Cambiar de cuenta"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setCambiarOpen(true);
+                }}
+              />
+              <ProfileMenuItem
                 icon={LogOut}
                 label="Cerrar sesión"
                 danger
@@ -414,6 +504,126 @@ export function AppShell() {
         ) : null}
         <Outlet />
       </main>
+
+      <Modal
+        open={cambiarOpen}
+        title="Cambiar de cuenta"
+        subtitle="Elige el usuario con el que quieres trabajar"
+        onClose={() => {
+          if (cambiando) return;
+          setCambiarOpen(false);
+          setClaveCuenta("");
+          setErrorCuenta("");
+        }}
+      >
+        {cargandoCuentas ? (
+          <p className="flex items-center justify-center gap-2 py-6 text-sm text-fg-muted">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Cargando cuentas…
+          </p>
+        ) : cuentas.length === 0 && !errorCuenta ? (
+          <p className="py-6 text-center text-sm text-fg-muted">
+            No hay otras cuentas disponibles.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-1.5" role="radiogroup" aria-label="Cuentas disponibles">
+              {cuentas.map((c) => {
+                const seleccionada = cuentaSel === c.usuario;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={seleccionada}
+                    onClick={() => {
+                      setCuentaSel(c.usuario);
+                      setClaveCuenta("");
+                      setErrorCuenta("");
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+                      seleccionada
+                        ? "border-accent bg-accent-soft"
+                        : "border-border bg-surface-2 hover:bg-hover",
+                    )}
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-xs font-bold text-accent-fg">
+                      {iniciales(c.nombre)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold leading-tight text-fg">
+                        {c.nombre}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-fg-muted">
+                        {c.dev ? "Desarrollador" : rolLabel(c.rol)}
+                      </span>
+                    </span>
+                    {seleccionada ? (
+                      <LogIn className="h-4 w-4 shrink-0 text-accent-fg" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            {cuentaElegida ? (
+              <div>
+                <Label htmlFor="cambiar-clave">
+                  Contraseña de {cuentaElegida.nombre}
+                </Label>
+                <Input
+                  id="cambiar-clave"
+                  type="password"
+                  autoComplete="current-password"
+                  autoFocus
+                  value={claveCuenta}
+                  disabled={cambiando}
+                  onChange={(e) => {
+                    setClaveCuenta(e.target.value);
+                    setErrorCuenta("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void onCambiarCuenta();
+                  }}
+                  placeholder="••••••••"
+                />
+              </div>
+            ) : null}
+
+            {errorCuenta ? (
+              <p role="alert" className="text-sm font-medium text-danger-fg">
+                {errorCuenta}
+              </p>
+            ) : null}
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="secondary"
+                disabled={cambiando}
+                onClick={() => {
+                  setCambiarOpen(false);
+                  setClaveCuenta("");
+                  setErrorCuenta("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                disabled={!cuentaSel || !claveCuenta || cambiando}
+                onClick={() => void onCambiarCuenta()}
+              >
+                {cambiando ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <UsersRound className="h-4 w-4" />
+                )}
+                {cambiando ? "Cambiando…" : "Cambiar cuenta"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         open={confirmLogout}

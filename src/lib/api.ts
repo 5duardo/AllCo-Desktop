@@ -33,6 +33,8 @@ import type {
 export const api = {
   login: (usuario: string, password: string) =>
     invoke<Usuario>("login", { usuario, password }),
+  cambiarCuenta: (usuario: string, password: string) =>
+    invoke<Usuario>("cambiar_usuario", { usuario, password }),
   logout: () => invoke<void>("logout"),
   sesionActual: () => invoke<Usuario | null>("sesion_actual"),
   usuariosLogin: () => invoke<Usuario[]>("usuarios_login"),

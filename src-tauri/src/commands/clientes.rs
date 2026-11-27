@@ -1,4 +1,4 @@
-use crate::commands::auth::{require_accion, require_roles};
+use crate::commands::auth::{rango_ventas, require_accion, require_roles};
 use crate::db;
 use crate::models::{Cliente, ClienteIn, VentaListado};
 use crate::AppState;
@@ -111,6 +111,7 @@ pub fn facturas_cliente(
     cliente_id: i64,
 ) -> Result<Vec<VentaListado>, String> {
     require_roles(&state, &["admin", "caja"])?;
+    let (d, h) = rango_ventas(&state, None, None);
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
     let mut stmt = conn
         .prepare(
@@ -118,12 +119,12 @@ pub fn facturas_cliente(
                     (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
              FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
              LEFT JOIN clientes c ON c.id = v.cliente_id
-             WHERE v.cliente_id = ?1
+             WHERE v.cliente_id = ?1 AND date(v.fecha) >= date(?2) AND date(v.fecha) <= date(?3)
              ORDER BY v.id DESC",
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map(params![cliente_id], |r| {
+        .query_map(params![cliente_id, d, h], |r| {
             Ok(VentaListado {
                 id: r.get(0)?,
                 fecha: r.get(1)?,
