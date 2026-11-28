@@ -1,6 +1,6 @@
 [package]
 name = "tauri-app"
-version = "0.1.0"
+version = "0.5.0"
 description = "AllCo — Sistema de inventario, punto de venta y caja"
 authors = ["HYPED"]
 edition = "2021"
