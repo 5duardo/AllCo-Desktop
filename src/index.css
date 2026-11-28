@@ -453,11 +453,18 @@ input[type="checkbox"]:disabled {
     @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg;
   }
 
-  /* Círculo del icono del hero: color sólido del tema, sin opacidad. */
+  /* Círculo del icono del hero: negro puro y sólido, sin opacidad. */
   .hero-icon {
-    background-color: var(--on-accent) !important;
+    background-color: #000 !important;
     color: var(--accent) !important;
     opacity: 1 !important;
+  }
+
+  /* Con el acento neutro el icono es casi negro: círculo claro para que se vea. */
+  :root:not([data-accent]) .hero-icon,
+  [data-accent="neutro"] .hero-icon {
+    background-color: #fff !important;
+    color: #000 !important;
   }
 
   /* Texto del hero: mismo color sólido, sin opacidad heredada. */

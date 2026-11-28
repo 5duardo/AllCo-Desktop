@@ -490,9 +490,9 @@ export function PosPage() {
                         type="button"
                         disabled={p.stock <= 0}
                         onClick={() => agregarProducto(p)}
-                        className="group flex aspect-square flex-col overflow-hidden rounded-xl border border-border bg-surface-2 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-[var(--ring)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-surface-2"
+                        className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface-2 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-[var(--ring)] active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:bg-surface-2"
                       >
-                        <span className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-surface">
+                        <span className="flex aspect-square w-full shrink-0 items-center justify-center overflow-hidden bg-surface">
                           {p.imagen ? (
                             <img
                               src={p.imagen}
@@ -505,7 +505,7 @@ export function PosPage() {
                           )}
                         </span>
                         <span className="flex shrink-0 flex-col p-2.5">
-                          <span className="line-clamp-2 text-sm font-semibold leading-snug">
+                          <span className="line-clamp-2 min-h-[2.25rem] text-sm font-semibold leading-snug">
                             {p.nombre}
                           </span>
                           <span className="mt-0.5 truncate text-[11px] text-fg-muted">
@@ -580,15 +580,15 @@ export function PosPage() {
                           nombre: s.nombre,
                         })
                       }
-                      className="group flex aspect-square flex-col overflow-hidden rounded-xl border border-border bg-surface-2 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-[var(--ring)] active:translate-y-0"
+                      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface-2 text-left outline-none transition-all hover:-translate-y-0.5 hover:border-accent/50 hover:bg-accent-soft focus-visible:ring-2 focus-visible:ring-[var(--ring)] active:translate-y-0"
                     >
-                      <span className="flex min-h-0 flex-1 items-center justify-center bg-surface">
+                      <span className="flex aspect-square w-full shrink-0 items-center justify-center bg-surface">
                         <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent-soft text-accent-fg">
                           <Wrench className="h-6 w-6" />
                         </span>
                       </span>
                       <span className="flex shrink-0 flex-col p-2.5">
-                        <span className="line-clamp-2 text-sm font-semibold leading-snug">
+                        <span className="line-clamp-2 min-h-[2.25rem] text-sm font-semibold leading-snug">
                           {s.nombre}
                         </span>
                         <span className="mt-1 flex items-end justify-between gap-2">

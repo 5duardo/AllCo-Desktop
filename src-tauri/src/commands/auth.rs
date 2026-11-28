@@ -24,12 +24,42 @@ fn segundos_bloqueo(bloqueado_hasta: &str) -> i64 {
 }
 
 pub fn require_user(state: &AppState) -> Result<UsuarioPublico, String> {
-    state
+    let mut user = state
         .session
         .lock()
         .map_err(|_| "Error interno de sesión".to_string())?
         .clone()
-        .ok_or_else(|| "Inicie sesión para continuar.".into())
+        .ok_or_else(|| "Inicie sesión para continuar.".to_string())?;
+
+    // La sesión es una instantánea en memoria: si el administrador desactivó al
+    // usuario o cambió su rol, debemos verificarlo contra la BD en cada acción.
+    {
+        let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
+        let fila: Option<(String, String, String, i64, i64)> = conn
+            .query_row(
+                "SELECT nombre, usuario, rol, activo, es_dev FROM usuarios WHERE id = ?1",
+                params![user.id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        match fila {
+            Some((nombre, usuario, rol, activo, dev)) if activo != 0 => {
+                user.nombre = nombre;
+                user.usuario = usuario;
+                user.rol = rol;
+                user.dev = dev != 0;
+                user.activo = true;
+            }
+            _ => return Err("Su usuario fue desactivado. Inicie sesión de nuevo.".into()),
+        }
+    }
+
+    *state
+        .session
+        .lock()
+        .map_err(|_| "Error interno de sesión".to_string())? = Some(user.clone());
+    Ok(user)
 }
 
 pub fn require_roles(state: &AppState, roles: &[&str]) -> Result<UsuarioPublico, String> {
@@ -246,7 +276,7 @@ fn validar_credenciales(
         Err("Usuario o contraseña incorrectos.".into())
     };
 
-    let Some((id, nombre, user_name, hash, rol, activo, dev, intentos, bloqueado)) = row else {
+    let Some((id, nombre, user_name, hash, rol, activo, dev, mut intentos, bloqueado)) = row else {
         return fail("Usuario no existe");
     };
 
@@ -263,6 +293,15 @@ fn validar_credenciales(
             return Err(format!(
                 "Demasiados intentos. Intente de nuevo en {restante} segundos."
             ));
+        } else if intentos > 0 {
+            // El bloqueo ya venció: reinicia el contador para que un solo error
+            // no vuelva a bloquear la cuenta durante 30 minutos.
+            intentos = 0;
+            conn.execute(
+                "UPDATE usuarios SET intentos_fallidos = 0 WHERE id = ?1",
+                params![id],
+            )
+            .map_err(|e| e.to_string())?;
         }
     }
 

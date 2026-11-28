@@ -18,6 +18,31 @@ import { Badge, Card, Stat } from "@/components/ui/card";
 const LIMITE_LISTA = 5;
 const LIMITE_BITACORA = 10;
 
+const TIPOS_EVENTO: Record<string, string> = {
+  login_ok: "Inicio de sesión",
+  login_fail: "Acceso fallido",
+  logout: "Cierre de sesión",
+  password_reset: "Contraseña restablecida",
+  app_start: "Aplicación iniciada",
+  app_exit: "Aplicación cerrada",
+  print_ok: "Impresión correcta",
+  print_fail: "Error de impresión",
+  backup_ok: "Respaldo correcto",
+  backup_fail: "Error de respaldo",
+  gasto: "Gasto registrado",
+  licencia: "Licencia",
+  permisos: "Permisos",
+  favorito_dispositivo: "Dispositivo favorito",
+  datos_eliminados: "Datos eliminados",
+};
+
+function tipoEventoLabel(tipo: string) {
+  return (
+    TIPOS_EVENTO[tipo] ??
+    tipo.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())
+  );
+}
+
 function impresoraLabel(s: string) {
   if (s === "lista") return { label: "Lista (última factura OK)", tone: "ok" as const };
   if (s === "error") return { label: "Error de impresión", tone: "danger" as const };
@@ -187,7 +212,7 @@ export function StatusPage({ sinHero = false, sinPage = false }: { sinHero?: boo
               <ul className="space-y-1 text-sm">
                 {erroresVisibles.map((e) => (
                   <li key={e.id} className="py-2.5">
-                    <Badge tone="danger" className="mr-2 font-mono">{e.tipo}</Badge>
+                    <Badge tone="danger" className="mr-2">{tipoEventoLabel(e.tipo)}</Badge>
                     {e.mensaje}
                     <span className="mt-1 block text-xs text-fg-muted">{fechaHora(e.fecha)}</span>
                   </li>
@@ -211,7 +236,7 @@ export function StatusPage({ sinHero = false, sinPage = false }: { sinHero?: boo
         </Card>
       </div>
 
-      <Card className="mt-4">
+      <Card className="mt-4 overflow-hidden">
         <div className="flex items-center gap-2 bg-surface-2 px-5 py-4">
           <HardDrive className="h-4 w-4 text-fg-muted" />
           <h3 className="card-title">Bitácora del sistema</h3>
@@ -231,7 +256,7 @@ export function StatusPage({ sinHero = false, sinPage = false }: { sinHero?: boo
                 <tr key={e.id}>
                   <td className="whitespace-nowrap text-fg-muted">{fechaHora(e.fecha)}</td>
                   <td>
-                    <Badge className="font-mono">{e.tipo}</Badge>
+                    <Badge>{tipoEventoLabel(e.tipo)}</Badge>
                   </td>
                   <td>{e.usuario_nombre ?? "—"}</td>
                   <td className="text-fg-muted">{e.mensaje}</td>

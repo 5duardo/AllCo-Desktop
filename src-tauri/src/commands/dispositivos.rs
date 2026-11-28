@@ -138,6 +138,49 @@ fn normalizar(s: &str) -> String {
         .collect()
 }
 
+/// Impresoras virtuales de Windows (OneNote, PDF, XPS, fax…). No son físicas:
+/// no tiene sentido elegirlas para tickets ni probarlas, así que no se listan.
+fn es_impresora_virtual(nombre: &str, driver: &str, puerto: &str) -> bool {
+    const CLAVES: [&str; 20] = [
+        "ONENOTE",
+        "PRINTTOPDF",
+        "XPSDOCUMENTWRITER",
+        "XPSWRITER",
+        "SHAREDFAX",
+        "ROOTPRINTQUEUE",
+        "ADOBEPDF",
+        "CUTEPDF",
+        "PDFCREATOR",
+        "BULLZIP",
+        "DOPDF",
+        "NITROPDF",
+        "FOXITPDF",
+        "SNAGIT",
+        "PRIMOPDF",
+        "ACTIVEPDF",
+        "PDF24",
+        "SOLIDPDF",
+        "WIN2PDF",
+        "VIRTUALPRINTER",
+    ];
+    let n = normalizar(nombre);
+    let d = normalizar(driver);
+    let p = normalizar(puerto);
+    let contiene = |texto: &str| CLAVES.iter().any(|c| texto.contains(c));
+    if contiene(&n) || contiene(&d) {
+        return true;
+    }
+    // "Fax" a secas o "Fax (algo)"; el driver "Microsoft Shared Fax Driver" ya cae arriba.
+    if n == "FAX" || n.starts_with("FAX") {
+        return true;
+    }
+    // Puertos que solo usan impresoras virtuales.
+    matches!(p.as_str(), "PORTPROMPT" | "NUL" | "FILE" | "SHRFAX")
+        || p.contains("ONENOTE")
+        || p.contains("PRINTTOPDF")
+        || p.contains("XPSDOCUMENTWRITER")
+}
+
 fn ya_listada(impresoras: &[Impresora], nombre: &str) -> bool {
     let n = normalizar(nombre);
     impresoras
@@ -209,6 +252,12 @@ $d=@(Get-PnpDevice -PresentOnly | Select-Object FriendlyName,Class,Status,Instan
         .into_iter()
         .filter_map(|v| {
             let nombre = v["Name"].as_str()?.to_string();
+            let puerto = v["PortName"].as_str().unwrap_or("");
+            let driver = v["DriverName"].as_str().unwrap_or("");
+            // Solo impresoras físicas: fuera OneNote, PDF, XPS, fax y similares.
+            if es_impresora_virtual(&nombre, driver, puerto) {
+                return None;
+            }
             Some(Impresora {
                 puente: puentes
                     .iter()
@@ -216,8 +265,8 @@ $d=@(Get-PnpDevice -PresentOnly | Select-Object FriendlyName,Class,Status,Instan
                 nombre,
                 predeterminada: v["Default"].as_bool().unwrap_or(false),
                 sin_conexion: v["WorkOffline"].as_bool().unwrap_or(false),
-                puerto: v["PortName"].as_str().unwrap_or("").to_string(),
-                driver: v["DriverName"].as_str().unwrap_or("").to_string(),
+                puerto: puerto.to_string(),
+                driver: driver.to_string(),
                 instalada: true,
                 ruta: String::new(),
             })
@@ -231,6 +280,9 @@ $d=@(Get-PnpDevice -PresentOnly | Select-Object FriendlyName,Class,Status,Instan
                     _ => continue,
                 };
                 let token = normalizar(&nombre);
+                if es_impresora_virtual(&nombre, "", "") {
+                    continue;
+                }
                 let id = d["InstanceId"].as_str().unwrap_or("");
                 let vid = usb_id(id, "VID_");
                 let pid = usb_id(id, "PID_");

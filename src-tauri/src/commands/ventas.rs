@@ -83,6 +83,8 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
             return Err("La cantidad debe ser mayor a 0.".into());
         }
         let nombre: String;
+        // El precio se valida en el servidor; el que envía el cliente es solo informativo.
+        let precio_unitario: f64;
         if item.tipo == "producto" {
             let (nom, stock, precio): (String, i64, f64) = tx
                 .query_row(
@@ -95,7 +97,7 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
                 return Err(format!("Stock insuficiente de {nom}. Disponible: {stock}"));
             }
             nombre = nom;
-            let _ = precio;
+            precio_unitario = precio;
             tx.execute(
                 "UPDATE productos SET stock = stock - ?1, updated_at = ?2 WHERE id = ?3",
                 params![item.cantidad, ts, item.referencia_id],
@@ -109,20 +111,22 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
             )
             .map_err(|e| e.to_string())?;
         } else if item.tipo == "servicio" {
-            nombre = tx
+            let (nom, precio): (String, f64) = tx
                 .query_row(
-                    "SELECT nombre FROM servicios WHERE id = ?1 AND activo = 1",
+                    "SELECT nombre, precio FROM servicios WHERE id = ?1 AND activo = 1",
                     params![item.referencia_id],
-                    |r| r.get(0),
+                    |r| Ok((r.get(0)?, r.get(1)?)),
                 )
                 .map_err(|_| "Servicio no encontrado.".to_string())?;
+            nombre = nom;
+            precio_unitario = precio;
         } else {
             return Err("Tipo de ítem inválido.".into());
         }
 
-        let linea = db::round2(
-            item.precio_unitario * item.cantidad as f64 - item.descuento,
-        );
+        let max_linea = db::round2(precio_unitario * item.cantidad as f64);
+        let descuento_linea = item.descuento.max(0.0).min(max_linea);
+        let linea = db::round2(max_linea - descuento_linea);
         if linea < 0.0 {
             return Err("El descuento no puede superar el importe de la línea.".into());
         }
@@ -136,8 +140,8 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
                 item.tipo,
                 item.referencia_id,
                 item.cantidad,
-                item.precio_unitario,
-                item.descuento
+                precio_unitario,
+                descuento_linea
             ],
         )
         .map_err(|e| e.to_string())?;

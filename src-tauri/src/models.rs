@@ -129,6 +129,8 @@ pub struct VentaItemIn {
     pub tipo: String,
     pub referencia_id: i64,
     pub cantidad: i64,
+    /// Lo envía el carrito para mostrarlo; el backend siempre vuelve a leer el precio de la BD.
+    #[allow(dead_code)]
     pub precio_unitario: f64,
     pub descuento: f64,
 }

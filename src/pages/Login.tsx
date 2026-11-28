@@ -5,10 +5,7 @@ import {
   EyeOff,
   Lock,
   LogIn,
-  ScanBarcode,
-  ShieldCheck,
   UserRound,
-  WifiOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -34,24 +31,6 @@ function esperaTexto(segundos: number) {
   }
   return `${segundos} s`;
 }
-
-const FEATURES = [
-  {
-    icon: ScanBarcode,
-    title: "Cobro con lector de barras",
-    text: "Ventas rápidas, sin digitar códigos.",
-  },
-  {
-    icon: WifiOff,
-    title: "Funciona sin internet",
-    text: "Sus datos viven en esta PC, con respaldo local.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Permisos por rol",
-    text: "Administrador, bodega y caja.",
-  },
-];
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -194,48 +173,28 @@ export function LoginPage() {
 
       <div className="relative grid w-full max-w-5xl md:min-h-[560px] md:grid-cols-[1.08fr_0.92fr]">
         {/* Panel de marca */}
-        <div className="relative hidden flex-col justify-between overflow-hidden rounded-l-3xl bg-sidebar p-8 text-sidebar-fg md:flex">
-          <div className="relative flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Logo framed={false} className="h-11 w-11" />
-              <div>
-                <p className="text-lg font-bold leading-tight">AllCo</p>
-              </div>
-            </div>
+        <div className="relative hidden flex-col overflow-hidden rounded-l-3xl bg-sidebar p-8 text-sidebar-fg md:flex">
+          <div className="relative flex items-center gap-3">
+            <Logo framed={false} className="h-11 w-11" />
+            <p className="text-lg font-bold leading-tight">AllCo</p>
           </div>
 
-          <div className="relative my-6 max-w-sm">
+          <div className="relative my-auto max-w-sm py-10">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-accent">
               ALLCO
             </p>
-            <h1 className="mt-3 text-4xl font-bold leading-[1.1] tracking-tight">
+            <h1 className="mt-4 text-[2.5rem] font-bold leading-[1.08] tracking-tight">
               Tu negocio,
               <br />
               bajo control.
             </h1>
-            <p className="mt-4 text-sm leading-relaxed text-sidebar-muted">
+            <p className="mt-5 max-w-xs text-sm leading-relaxed text-sidebar-muted">
               Inventario, ventas y caja en un solo sistema. Sin depender de internet.
             </p>
-
-            <ul className="mt-6 space-y-2">
-              {FEATURES.map((f) => (
-                <li
-                  key={f.title}
-                  className="flex items-center gap-3 rounded-xl bg-[#15171b] px-3.5 py-3"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent-fg">
-                    <f.icon className="h-[18px] w-[18px]" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold leading-tight">{f.title}</span>
-                    <span className="block text-xs text-sidebar-muted">{f.text}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-8 h-px w-12 bg-accent" />
           </div>
 
-          <div className="relative flex items-center justify-between text-xs text-sidebar-muted">
+          <div className="relative flex items-center justify-between border-t border-sidebar-border pt-5 text-xs text-sidebar-muted">
             <span>Sistema de escritorio</span>
             <button
               type="button"
