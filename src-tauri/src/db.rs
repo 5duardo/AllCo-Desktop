@@ -119,6 +119,7 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
             total REAL NOT NULL,
             descuento REAL NOT NULL DEFAULT 0,
             metodo_pago TEXT NOT NULL,
+            condicion TEXT NOT NULL DEFAULT 'contado' CHECK (condicion IN ('contado','credito')),
             estado TEXT NOT NULL DEFAULT 'completada',
             motivo_anulacion TEXT
         );
@@ -171,6 +172,19 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
             created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_gastos_fecha ON gastos(fecha);
+        CREATE TABLE IF NOT EXISTS horas_extras (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empleado_id INTEGER NOT NULL REFERENCES empleados(id),
+            fecha TEXT NOT NULL,
+            horas REAL NOT NULL,
+            monto REAL NOT NULL,
+            nota TEXT NOT NULL DEFAULT '',
+            gasto_id INTEGER REFERENCES gastos(id) ON DELETE SET NULL,
+            usuario_id INTEGER REFERENCES usuarios(id),
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_horas_extras_empleado ON horas_extras(empleado_id);
+        CREATE INDEX IF NOT EXISTS idx_horas_extras_fecha ON horas_extras(fecha);
         CREATE TABLE IF NOT EXISTS favoritos_dispositivo (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             tipo TEXT NOT NULL CHECK (tipo IN ('impresora','dispositivo')),
@@ -202,6 +216,30 @@ pub fn migrate_and_seed(conn: &Connection) -> Result<(), String> {
     if !tiene_cliente_id {
         conn.execute(
             "ALTER TABLE ventas ADD COLUMN cliente_id INTEGER REFERENCES clientes(id)",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    // Condición de la venta: contado (default para ventas antiguas) o crédito.
+    let tiene_condicion = {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(ventas)")
+            .map_err(|e| e.to_string())?;
+        let mut rows = stmt.query([]).map_err(|e| e.to_string())?;
+        let mut encontrado = false;
+        while let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            let nombre: String = row.get(1).map_err(|e| e.to_string())?;
+            if nombre == "condicion" {
+                encontrado = true;
+                break;
+            }
+        }
+        encontrado
+    };
+    if !tiene_condicion {
+        conn.execute(
+            "ALTER TABLE ventas ADD COLUMN condicion TEXT NOT NULL DEFAULT 'contado'",
             [],
         )
         .map_err(|e| e.to_string())?;
@@ -749,4 +787,143 @@ pub fn last_evento(
     )
     .optional()
     .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests_condicion {
+    use super::*;
+
+    #[test]
+    fn migra_y_calcula_condicion_por_cliente() {
+        let conn = Connection::open_in_memory().unwrap();
+        // Tabla de ventas de una versión anterior (sin condicion ni cliente_id).
+        conn.execute_batch(
+            "CREATE TABLE ventas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha TEXT NOT NULL,
+                usuario_id INTEGER NOT NULL,
+                total REAL NOT NULL,
+                descuento REAL NOT NULL DEFAULT 0,
+                metodo_pago TEXT NOT NULL,
+                estado TEXT NOT NULL DEFAULT 'completada',
+                motivo_anulacion TEXT
+             );",
+        )
+        .unwrap();
+
+        migrate_and_seed(&conn).unwrap();
+
+        let mut stmt = conn.prepare("PRAGMA table_info(ventas)").unwrap();
+        let columnas: Vec<String> = stmt
+            .query_map([], |r| r.get(1))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert!(columnas.iter().any(|c| c == "condicion"));
+
+        conn.execute(
+            "INSERT INTO clientes (nombre, created_at) VALUES ('Cliente prueba', '2026-01-01')",
+            [],
+        )
+        .unwrap();
+        for condicion in ["contado", "credito", "credito"] {
+            conn.execute(
+                "INSERT INTO ventas (fecha, usuario_id, cliente_id, total, metodo_pago, condicion)
+                 VALUES ('2026-01-01', 1, 1, 100, 'efectivo', ?1)",
+                params![condicion],
+            )
+            .unwrap();
+        }
+
+        let (facturas, contado, credito, total_contado, total_credito): (i64, i64, i64, f64, f64) =
+            conn.query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM ventas v WHERE v.cliente_id = 1 AND v.estado = 'completada'),
+                   (SELECT COUNT(*) FROM ventas v WHERE v.cliente_id = 1 AND v.estado = 'completada' AND v.condicion = 'contado'),
+                   (SELECT COUNT(*) FROM ventas v WHERE v.cliente_id = 1 AND v.estado = 'completada' AND v.condicion = 'credito'),
+                   (SELECT COALESCE(SUM(v.total),0) FROM ventas v WHERE v.cliente_id = 1 AND v.estado = 'completada' AND v.condicion = 'contado'),
+                   (SELECT COALESCE(SUM(v.total),0) FROM ventas v WHERE v.cliente_id = 1 AND v.estado = 'completada' AND v.condicion = 'credito')",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )
+            .unwrap();
+
+        assert_eq!(facturas, 3);
+        assert_eq!(contado, 1);
+        assert_eq!(credito, 2);
+        assert_eq!(total_contado, 100.0);
+        assert_eq!(total_credito, 200.0);
+    }
+}
+
+#[cfg(test)]
+mod tests_horas_extras {
+    use super::*;
+
+    #[test]
+    fn horas_extras_totales_y_vinculo_con_gasto() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate_and_seed(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO empleados (nombre, puesto, telefono, activo, created_at)
+             VALUES ('Juan', 'Operario', '', 1, '2026-11-27')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO gastos (fecha, categoria, descripcion, monto, metodo_pago,
+                                 usuario_id, created_at)
+             VALUES ('2026-11-27', 'Sueldos', 'Horas extras · Juan · 2 h', 500,
+                     'efectivo', 1, '2026-11-27')",
+            [],
+        )
+        .unwrap();
+        let gasto_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO horas_extras
+             (empleado_id, fecha, horas, monto, nota, gasto_id, usuario_id, created_at)
+             VALUES (1, '2026-11-27', 2, 500, '', ?1, 1, '2026-11-27')",
+            params![gasto_id],
+        )
+        .unwrap();
+
+        let (registros, horas, pagado): (i64, f64, f64) = conn
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM horas_extras h WHERE h.empleado_id = 1),
+                   (SELECT COALESCE(SUM(h.horas),0) FROM horas_extras h WHERE h.empleado_id = 1),
+                   (SELECT COALESCE(SUM(h.monto),0) FROM horas_extras h WHERE h.empleado_id = 1)",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(registros, 1);
+        assert_eq!(horas, 2.0);
+        assert_eq!(pagado, 500.0);
+
+        let contar = |empleado: Option<i64>| -> i64 {
+            conn.query_row(
+                "SELECT COUNT(*) FROM horas_extras h
+                 WHERE date(h.fecha) >= date('2026-11-01') AND date(h.fecha) <= date('2026-11-30')
+                   AND (?1 IS NULL OR h.empleado_id = ?1)",
+                params![empleado],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(contar(None), 1);
+        assert_eq!(contar(Some(1)), 1);
+        assert_eq!(contar(Some(999)), 0);
+
+        // Si el gasto se borra desde Finanzas, el pago sigue en el historial.
+        conn.execute("DELETE FROM gastos WHERE id = ?1", params![gasto_id])
+            .unwrap();
+        let sin_gasto: Option<i64> = conn
+            .query_row("SELECT gasto_id FROM horas_extras WHERE id = 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(sin_gasto, None);
+    }
 }

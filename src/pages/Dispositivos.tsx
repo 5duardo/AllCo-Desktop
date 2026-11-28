@@ -195,7 +195,6 @@ export function DispositivosPage() {
         subtitle="Impresora de facturas y lector de código de barras"
         description="Vea los dispositivos conectados a esta PC, marque sus favoritos, elija la impresora para las facturas de caja y pruebe el lector de código de barras."
         icon={Printer}
-        badge={data ? `${data.impresoras.length} impresoras` : "Detectando…"}
       />
 
       {favoritos.length > 0 ? (

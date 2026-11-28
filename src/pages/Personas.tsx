@@ -27,7 +27,6 @@ export function PersonasPage() {
         subtitle="Empleados y usuarios del sistema"
         description="Administre la nómina de empleados y las cuentas que ingresan a AllCo, con sus permisos por módulo."
         icon={Users}
-        badge="Equipo y accesos"
       />
       <div className="seg mb-5 flex-wrap" role="group" aria-label="Secciones de personas">
         {TABS.map((t) => {

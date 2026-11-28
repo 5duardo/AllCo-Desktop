@@ -55,7 +55,6 @@ export function ReportesPage({ sinHero = false, sinPage = false }: { sinHero?: b
         subtitle="Ventas, kardex y existencias bajo mínimo"
         description="Consulta ventas por periodo, métodos de pago, servicios más vendidos y productos por debajo del stock mínimo."
         icon={BarChart3}
-        badge="Ventas y stock"
       />}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="seg" role="group" aria-label="Tipo de reporte">

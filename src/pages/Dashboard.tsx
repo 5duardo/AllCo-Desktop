@@ -224,12 +224,6 @@ export function DashboardPage() {
   );
   const periodoLabel =
     PERIODOS.find((p) => p.id === periodo)?.label ?? "Hoy";
-  const rangoTexto =
-    periodo === "todo"
-      ? "Todo el histórico"
-      : rangoActual.desde === rangoActual.hasta
-        ? fechaCorta(rangoActual.desde)
-        : `${fechaCorta(rangoActual.desde)} – ${fechaCorta(rangoActual.hasta)}`;
 
   useEffect(() => {
     api.dashboard().then(setData).catch((e) => setError(String(e)));
@@ -303,7 +297,6 @@ export function DashboardPage() {
             : "Vista consolidada de ventas, actividad y alertas del negocio. Cambia el periodo para analizar otros rangos."
         }
         icon={BarChart3}
-        badge={`${periodoLabel} · ${rangoTexto}`}
       />
 
       {/* Filtros y accesos */}

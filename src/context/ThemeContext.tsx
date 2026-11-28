@@ -6,19 +6,20 @@ import {
   type ReactNode,
 } from "react";
 
+/** Los acentos de color son iguales en claro y oscuro. Neutro se adapta al modo. */
 export const ACCENTS = [
   { id: "neutro", label: "Neutro", hex: "#08090a", hexDark: "#f3f4f6" },
-  { id: "amber", label: "Ámbar", hex: "#f59e0b", hexDark: "#fbbf24" },
-  { id: "azul", label: "Azul", hex: "#2563eb", hexDark: "#3b82f6" },
-  { id: "esmeralda", label: "Esmeralda", hex: "#059669", hexDark: "#10b981" },
-  { id: "violeta", label: "Violeta", hex: "#7c3aed", hexDark: "#8b5cf6" },
-  { id: "rosa", label: "Rosa", hex: "#e11d48", hexDark: "#f43f5e" },
-  { id: "turquesa", label: "Turquesa", hex: "#0d9488", hexDark: "#2dd4bf" },
-  { id: "naranja", label: "Naranja", hex: "#ea580c", hexDark: "#fb923c" },
-  { id: "rojo", label: "Rojo", hex: "#dc2626", hexDark: "#f87171" },
-  { id: "indigo", label: "Índigo", hex: "#4f46e5", hexDark: "#818cf8" },
-  { id: "cian", label: "Cian", hex: "#0891b2", hexDark: "#22d3ee" },
-  { id: "lima", label: "Lima", hex: "#65a30d", hexDark: "#a3e635" },
+  { id: "amber", label: "Ámbar", hex: "#f59e0b", hexDark: "#f59e0b" },
+  { id: "azul", label: "Azul", hex: "#2563eb", hexDark: "#2563eb" },
+  { id: "esmeralda", label: "Esmeralda", hex: "#059669", hexDark: "#059669" },
+  { id: "violeta", label: "Violeta", hex: "#7c3aed", hexDark: "#7c3aed" },
+  { id: "rosa", label: "Rosa", hex: "#e11d48", hexDark: "#e11d48" },
+  { id: "turquesa", label: "Turquesa", hex: "#0d9488", hexDark: "#0d9488" },
+  { id: "naranja", label: "Naranja", hex: "#ea580c", hexDark: "#ea580c" },
+  { id: "rojo", label: "Rojo", hex: "#dc2626", hexDark: "#dc2626" },
+  { id: "indigo", label: "Índigo", hex: "#4f46e5", hexDark: "#4f46e5" },
+  { id: "cian", label: "Cian", hex: "#0891b2", hexDark: "#0891b2" },
+  { id: "lima", label: "Lima", hex: "#65a30d", hexDark: "#65a30d" },
 ] as const;
 
 export const FONTS = [

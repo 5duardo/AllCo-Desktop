@@ -52,6 +52,9 @@
   --fg-muted: #5b626d;
   --fg-faint: #8b919c;
 
+  /* Fondo del círculo del icono del hero: oscuro y sólido en cualquier tema. */
+  --hero-icon-bg: #000000;
+
   --field: #eceef1;
   --hover: #eef0f3;
   --sidebar-hover: #191b1f;
@@ -173,57 +176,7 @@
   --on-accent: #ffffff;
 }
 
-[data-mode="dark"][data-accent="amber"] {
-  --accent: #fbbf24;
-  --accent-hover: #fcd34d;
-}
-[data-mode="dark"][data-accent="azul"] {
-  --accent: #3b82f6;
-  --accent-hover: #60a5fa;
-}
-[data-mode="dark"][data-accent="esmeralda"] {
-  --accent: #10b981;
-  --accent-hover: #34d399;
-  --on-accent: #052e1f;
-}
-[data-mode="dark"][data-accent="violeta"] {
-  --accent: #8b5cf6;
-  --accent-hover: #a78bfa;
-}
-[data-mode="dark"][data-accent="rosa"] {
-  --accent: #f43f5e;
-  --accent-hover: #fb7185;
-}
-[data-mode="dark"][data-accent="turquesa"] {
-  --accent: #2dd4bf;
-  --accent-hover: #5eead4;
-  --on-accent: #042f2e;
-}
-[data-mode="dark"][data-accent="naranja"] {
-  --accent: #fb923c;
-  --accent-hover: #fdba74;
-  --on-accent: #431407;
-}
-[data-mode="dark"][data-accent="rojo"] {
-  --accent: #f87171;
-  --accent-hover: #fca5a5;
-  --on-accent: #450a0a;
-}
-[data-mode="dark"][data-accent="indigo"] {
-  --accent: #818cf8;
-  --accent-hover: #a5b4fc;
-  --on-accent: #1e1b4b;
-}
-[data-mode="dark"][data-accent="cian"] {
-  --accent: #22d3ee;
-  --accent-hover: #67e8f9;
-  --on-accent: #083344;
-}
-[data-mode="dark"][data-accent="lima"] {
-  --accent: #a3e635;
-  --accent-hover: #bef264;
-  --on-accent: #1a2e05;
-}
+/* Los acentos de color no cambian con el modo; solo Neutro se adapta. */
 [data-mode="dark"][data-accent="neutro"] {
   --accent: #f3f4f6;
   --accent-hover: #e5e7eb;
@@ -453,23 +406,26 @@ input[type="checkbox"]:disabled {
     @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-fg;
   }
 
-  /* Círculo del icono del hero: negro puro y sólido, sin opacidad. */
+  /* Círculo del icono del hero: oscuro sólido, con el icono en color de acento. */
   .hero-icon {
-    background-color: #000 !important;
+    background-color: var(--hero-icon-bg) !important;
     color: var(--accent) !important;
     opacity: 1 !important;
   }
 
-  /* Con el acento neutro el icono es casi negro: círculo claro para que se vea. */
-  :root:not([data-accent]) .hero-icon,
-  [data-accent="neutro"] .hero-icon {
-    background-color: #fff !important;
-    color: #000 !important;
+  /* Avatar del usuario en el sidebar: acento sólido, sin color mezclado. */
+  .user-avatar {
+    background-color: var(--accent) !important;
+    color: var(--on-accent) !important;
+    opacity: 1 !important;
   }
 
   /* Texto del hero: mismo color sólido, sin opacidad heredada. */
   .hero-text {
     color: var(--on-accent) !important;
+    opacity: 1 !important;
+  }
+  .hero-text * {
     opacity: 1 !important;
   }
 

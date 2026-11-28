@@ -55,7 +55,6 @@ export function PruebasPage() {
         subtitle="Datos de ejemplo y herramientas de desarrollo"
         description="Herramientas exclusivas del usuario de desarrollo para poblar la app con productos, servicios, clientes y ventas de ejemplo."
         icon={FlaskConical}
-        badge="Solo desarrollador"
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

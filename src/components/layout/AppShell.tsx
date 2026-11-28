@@ -15,6 +15,8 @@ import { Input, Label } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import {
   BeakerIcon,
+  CalculatorIcon,
+  ChartBarIcon,
   Cog6ToothIcon,
   CubeIcon,
   DocumentTextIcon,
@@ -23,10 +25,13 @@ import {
   PrinterIcon,
   ShoppingCartIcon,
   UsersIcon,
+  WalletIcon,
   WrenchIcon,
 } from "@heroicons/react/24/outline";
 import {
   BeakerIcon as BeakerSolidIcon,
+  CalculatorIcon as CalculatorSolidIcon,
+  ChartBarIcon as ChartBarSolidIcon,
   Cog6ToothIcon as Cog6ToothSolidIcon,
   CubeIcon as CubeSolidIcon,
   DocumentTextIcon as DocumentTextSolidIcon,
@@ -35,6 +40,7 @@ import {
   PrinterIcon as PrinterSolidIcon,
   ShoppingCartIcon as ShoppingCartSolidIcon,
   UsersIcon as UsersSolidIcon,
+  WalletIcon as WalletSolidIcon,
   WrenchIcon as WrenchSolidIcon,
 } from "@heroicons/react/24/solid";
 import { useAuth } from "@/context/AuthContext";
@@ -69,9 +75,12 @@ const NAV: {
 }[] = [
   { to: "/", label: "Resumen", icon: HomeIcon, iconSolid: HomeSolidIcon, group: "operacion", roles: ["admin", "caja", "bodega"] },
   { to: "/pos", label: "Punto de venta", icon: ShoppingCartIcon, iconSolid: ShoppingCartSolidIcon, group: "operacion", roles: ["admin", "caja"] },
-  { to: "/ventas", label: "Ventas", icon: DocumentTextIcon, iconSolid: DocumentTextSolidIcon, group: "operacion", roles: ["admin", "caja"] },
+  { to: "/facturacion", label: "Facturación", icon: DocumentTextIcon, iconSolid: DocumentTextSolidIcon, group: "operacion", roles: ["admin", "caja"] },
+  { to: "/reportes", label: "Reportes", icon: ChartBarIcon, iconSolid: ChartBarSolidIcon, group: "operacion", roles: ["admin"] },
+  { to: "/finanzas", label: "Finanzas", icon: WalletIcon, iconSolid: WalletSolidIcon, group: "administracion", roles: ["admin"] },
+  { to: "/talonarios", label: "Talonarios", icon: CalculatorIcon, iconSolid: CalculatorSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/clientes", label: "Clientes", icon: IdentificationIcon, iconSolid: IdentificationSolidIcon, group: "operacion", roles: ["admin", "caja"] },
-  { to: "/catalogo", label: "Catálogo", icon: CubeIcon, iconSolid: CubeSolidIcon, group: "inventario", roles: ["admin", "bodega"] },
+  { to: "/catalogo", label: "Inventario", icon: CubeIcon, iconSolid: CubeSolidIcon, group: "inventario", roles: ["admin", "bodega"] },
   { to: "/dispositivos", label: "Dispositivos", icon: PrinterIcon, iconSolid: PrinterSolidIcon, group: "inventario", roles: ["admin", "caja"] },
   { to: "/personas", label: "Personas", icon: UsersIcon, iconSolid: UsersSolidIcon, group: "administracion", roles: ["admin"] },
   { to: "/sistema", label: "Sistema", icon: WrenchIcon, iconSolid: WrenchSolidIcon, group: "administracion", roles: ["admin"] },
@@ -458,7 +467,7 @@ export function AppShell() {
             )}
           >
             <span className="relative shrink-0">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-soft text-xs font-bold text-accent-fg">
+              <span className="user-avatar flex h-9 w-9 items-center justify-center rounded-xl text-xs font-bold">
                 {initials}
               </span>
               <span

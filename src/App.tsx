@@ -15,7 +15,10 @@ import { DispositivosPage } from "@/pages/Dispositivos";
 import { ConfigPage } from "@/pages/Configuracion";
 import { PruebasPage } from "@/pages/Pruebas";
 import { CatalogoPage } from "@/pages/Catalogo";
-import { VentasPage } from "@/pages/Ventas";
+import { FacturacionPage } from "@/pages/Facturacion";
+import { ReportesPage } from "@/pages/Reportes";
+import { FinanzasPage } from "@/pages/Finanzas";
+import { TalonariosPage } from "@/pages/Talonarios";
 import { PersonasPage } from "@/pages/Personas";
 import { SistemaPage } from "@/pages/Sistema";
 import { SoportePage } from "@/pages/Soporte";
@@ -55,6 +58,14 @@ function DevOnly() {
   const { user } = useAuth();
   if (!user?.dev) return <Navigate to="/" replace />;
   return <Outlet />;
+}
+
+// Finanzas la ve el administrador o quien tenga el permiso personalizado.
+function AccesoFinanzas() {
+  const { user, permisos, tieneAcceso } = useAuth();
+  if (user?.rol === "admin") return <Outlet />;
+  if (permisos !== null && tieneAcceso("/finanzas")) return <Outlet />;
+  return <Navigate to="/" replace />;
 }
 
 function Splash() {
@@ -114,12 +125,17 @@ export default function App() {
                     <Route path="/pos" element={<PosPage />} />
                     <Route path="/clientes" element={<ClientesPage />} />
                     <Route path="/dispositivos" element={<DispositivosPage />} />
-                    <Route path="/ventas" element={<VentasPage />} />
+                    <Route path="/facturacion" element={<FacturacionPage />} />
+                    <Route element={<AccesoFinanzas />}>
+                      <Route path="/finanzas" element={<FinanzasPage />} />
+                    </Route>
                   </Route>
                   <Route element={<Protected roles={["admin", "bodega"]} />}>
                     <Route path="/catalogo" element={<CatalogoPage />} />
                   </Route>
                   <Route element={<Protected roles={["admin"]} />}>
+                    <Route path="/reportes" element={<ReportesPage />} />
+                    <Route path="/talonarios" element={<TalonariosPage />} />
                     <Route path="/personas" element={<PersonasPage />} />
                     <Route path="/sistema" element={<SistemaPage />} />
                     <Route path="/config" element={<ConfigPage />} />
@@ -129,11 +145,8 @@ export default function App() {
                   </Route>
                 </Route>
               </Route>
-              {/* Rutas anteriores: redirigen a la pestaña equivalente. */}
-              <Route path="/facturacion" element={<Navigate to="/ventas?tab=facturas" replace />} />
-              <Route path="/reportes" element={<Navigate to="/ventas?tab=reportes" replace />} />
-              <Route path="/finanzas" element={<Navigate to="/ventas?tab=finanzas" replace />} />
-              <Route path="/talonarios" element={<Navigate to="/ventas?tab=talonarios" replace />} />
+              {/* Ruta anterior: Ventas se abrió en cuatro páginas propias. */}
+              <Route path="/ventas" element={<Navigate to="/facturacion" replace />} />
               <Route path="/inventario" element={<Navigate to="/catalogo?tab=productos" replace />} />
               <Route path="/servicios" element={<Navigate to="/catalogo?tab=servicios" replace />} />
               <Route path="/proveedores" element={<Navigate to="/catalogo?tab=proveedores" replace />} />

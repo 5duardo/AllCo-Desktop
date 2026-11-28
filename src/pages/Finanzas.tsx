@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  Clock,
   Pencil,
   Plus,
   Receipt,
@@ -20,18 +21,21 @@ import {
   type CatalogoSimple,
   type Gasto,
   type GastoIn,
+  type HoraExtra,
+  type HoraExtraIn,
   type ResumenFinanzas,
 } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Stat } from "@/components/ui/card";
-import { Input, Label, Select } from "@/components/ui/input";
+import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
-type Tab = "resumen" | "gastos" | "compras";
+type Tab = "resumen" | "gastos" | "compras" | "extras";
 
 function hoy() {
   const d = new Date();
@@ -71,8 +75,17 @@ const formVacio: GastoIn = {
   proveedor_id: null,
 };
 
+const extraVacia: HoraExtraIn = {
+  empleado_id: 0,
+  fecha: hoy(),
+  horas: 1,
+  monto: 0,
+  nota: "",
+};
+
 export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: boolean; sinPage?: boolean }) {
-  const { puede } = useAuth();
+  const { user, puede } = useAuth();
+  const esAdmin = user?.rol === "admin";
   const toast = useToast();
   const [tab, setTab] = useState<Tab>("resumen");
   const [periodo, setPeriodo] = useState("mes");
@@ -88,6 +101,16 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
   const [form, setForm] = useState<GastoIn>(formVacio);
   const [guardando, setGuardando] = useState(false);
   const [borrar, setBorrar] = useState<Gasto | null>(null);
+
+  const [extras, setExtras] = useState<HoraExtra[]>([]);
+  const [empleados, setEmpleados] = useState<CatalogoSimple[]>([]);
+  const [filtroEmpleado, setFiltroEmpleado] = useState("");
+  const [extraDesde, setExtraDesde] = useState(`${hoy().slice(0, 7)}-01`);
+  const [extraHasta, setExtraHasta] = useState(hoy);
+  const [extraForm, setExtraForm] = useState<HoraExtraIn>(extraVacia);
+  const [extraOpen, setExtraOpen] = useState(false);
+  const [borrarExtra, setBorrarExtra] = useState<HoraExtra | null>(null);
+  const [guardandoExtra, setGuardandoExtra] = useState(false);
 
   async function cargar() {
     const [d, h] = rango(periodo, desde, hasta);
@@ -105,8 +128,26 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
   useEffect(() => {
     void cargar();
     api.listarProveedores().then(setProveedores).catch(() => {});
+    if (esAdmin) api.listarEmpleados(true).then(setEmpleados).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodo, desde, hasta]);
+  }, [periodo, desde, hasta, esAdmin]);
+
+  useEffect(() => {
+    if (tab !== "extras" || !esAdmin) return;
+    void (async () => {
+      try {
+        setExtras(
+          await api.listarHorasExtras(
+            filtroEmpleado ? Number(filtroEmpleado) : null,
+            extraDesde,
+            extraHasta,
+          ),
+        );
+      } catch (e) {
+        toast.error(String(e));
+      }
+    })();
+  }, [tab, filtroEmpleado, extraDesde, extraHasta, esAdmin]);
 
   function abrirNuevo() {
     setForm({ ...formVacio, fecha: hoy() });
@@ -160,9 +201,76 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
     }
   }
 
+  function abrirNuevaExtra() {
+    setExtraForm({ ...extraVacia, fecha: hoy(), empleado_id: empleados[0]?.id ?? 0 });
+    setExtraOpen(true);
+  }
+
+  function abrirEditarExtra(h: HoraExtra) {
+    setExtraForm({
+      id: h.id,
+      empleado_id: h.empleado_id,
+      fecha: h.fecha.slice(0, 10),
+      horas: h.horas,
+      monto: h.monto,
+      nota: h.nota,
+    });
+    setExtraOpen(true);
+  }
+
+  async function guardarExtra(e: FormEvent) {
+    e.preventDefault();
+    if (!extraForm.empleado_id) {
+      toast.error("Seleccione un empleado.");
+      return;
+    }
+    setGuardandoExtra(true);
+    try {
+      await api.guardarHoraExtra({ ...extraForm, nota: extraForm.nota.trim() });
+      setExtraOpen(false);
+      const [d, h] = rango(periodo, desde, hasta);
+      setResumen(await api.resumenFinanzas(d, h));
+      setExtras(
+        await api.listarHorasExtras(
+          filtroEmpleado ? Number(filtroEmpleado) : null,
+          extraDesde,
+          extraHasta,
+        ),
+      );
+      toast.ok(extraForm.id ? "Pago de horas extras actualizado." : "Pago de horas extras registrado.");
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      setGuardandoExtra(false);
+    }
+  }
+
+  async function confirmarBorrarExtra() {
+    if (!borrarExtra) return;
+    try {
+      await api.eliminarHoraExtra(borrarExtra.id);
+      setBorrarExtra(null);
+      const [d, h] = rango(periodo, desde, hasta);
+      setResumen(await api.resumenFinanzas(d, h));
+      setExtras(
+        await api.listarHorasExtras(
+          filtroEmpleado ? Number(filtroEmpleado) : null,
+          extraDesde,
+          extraHasta,
+        ),
+      );
+      toast.ok("Registro de horas extras eliminado.");
+    } catch (err) {
+      toast.error(String(err));
+    }
+  }
+
   const gastos = (resumen?.gastos ?? []).filter(
     (g) => !filtroCategoria || g.categoria === filtroCategoria,
   );
+  const totalGastos = gastos.reduce((s, g) => s + g.monto, 0);
+  const extraHoras = extras.reduce((s, h) => s + h.horas, 0);
+  const extraMonto = extras.reduce((s, h) => s + h.monto, 0);
   const compras = resumen?.compras ?? [];
   const serie = resumen?.serie ?? [];
   const maxSerie = Math.max(
@@ -170,30 +278,28 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
     ...serie.flatMap((d) => [d.ingresos, d.gastos]),
   );
   const maxCat = Math.max(1, ...(resumen?.por_categoria ?? []).map((c) => c.total));
-  const pctGastos =
-    resumen && resumen.ingresos > 0
-      ? Math.min(100, Math.round((resumen.gastos_totales / resumen.ingresos) * 100))
-      : 0;
 
   return (
     <div className={sinPage ? undefined : "page"}>
       {sinHero ? null : <PageHero
         title="Finanzas"
-        subtitle="Gastos, compras de inventario y utilidad neta"
-        description="Registre sus gastos y vea la utilidad neta del periodo. Las compras de inventario se derivan automáticamente de las entradas de stock por su costo."
+        subtitle="Gastos, compras, horas extras y utilidad neta"
+        description="Registre sus gastos y las horas extras pagadas al personal. Las compras de inventario se derivan automáticamente de las entradas de stock por su costo."
         icon={Wallet}
-        badge="Gastos y utilidad"
       />}
 
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+      <div className="mb-4 border-b border-border pb-4">
         <div className="seg" role="group" aria-label="Secciones de finanzas">
           {(
             [
               ["resumen", "Resumen", BarChart3],
               ["gastos", "Gastos", Receipt],
               ["compras", "Compras de inventario", ShoppingCart],
+              ["extras", "Horas extras", Clock],
             ] as const
-          ).map(([id, label, Icon]) => (
+          )
+            .filter(([id]) => id !== "extras" || esAdmin)
+            .map(([id, label, Icon]) => (
             <button
               key={id}
               type="button"
@@ -206,6 +312,9 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-40">
             <Label>Periodo</Label>
@@ -216,6 +325,12 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
               <option value="rango">Rango</option>
             </Select>
           </div>
+          {tab === "gastos" && puede("/finanzas", "crear") ? (
+            <Button onClick={abrirNuevo} className="shrink-0">
+              <Plus className="h-4 w-4" />
+              Nuevo gasto
+            </Button>
+          ) : null}
           {periodo === "rango" ? (
             <>
               <div className="w-36">
@@ -242,36 +357,6 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
       {tab === "resumen" ? (
         resumen ? (
           <div className="space-y-5">
-            <div className="rounded-2xl bg-accent p-5 text-on-accent md:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-on-accent">
-                    Utilidad neta del periodo
-                  </p>
-                  <p className="mt-1 truncate text-3xl font-bold tabular-nums md:text-4xl">
-                    {lempiras(resumen.utilidad_neta)}
-                  </p>
-                  <p className="mt-1 text-xs text-on-accent">
-                    Ventas completadas − gastos registrados − compras de inventario
-                  </p>
-                </div>
-                <Badge tone={resumen.utilidad_neta >= 0 ? "ok" : "danger"}>
-                  {resumen.utilidad_neta >= 0 ? "Resultado positivo" : "Resultado negativo"}
-                </Badge>
-              </div>
-              <div className="mt-5 border-t border-border pt-4">
-                <div className="h-1.5 overflow-hidden rounded-full bg-surface">
-                  <div
-                    className="h-full rounded-full bg-on-accent"
-                    style={{ width: `${pctGastos}%` }}
-                  />
-                </div>
-                <p className="mt-1.5 text-[11px] text-on-accent">
-                  Los gastos representan {pctGastos}% de los ingresos del periodo.
-                </p>
-              </div>
-            </div>
-
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <Stat
                 label="Ingresos (ventas)"
@@ -303,7 +388,7 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
             </div>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-              <Card className="p-5">
+              <Card className="flex h-full flex-col p-5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 className="card-title">Ingresos y gastos por día</h2>
                 <div className="flex gap-3 text-[11px] text-fg-muted">
@@ -316,7 +401,7 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
                 </div>
               </div>
               {serie.length ? (
-                <div className="mt-4 space-y-2.5">
+                <div className="mt-4 max-h-96 space-y-2.5 overflow-y-auto pr-1">
                   {serie.map((d) => (
                     <div
                       key={d.fecha}
@@ -359,7 +444,7 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
               )}
               </Card>
 
-            <Card className="p-5">
+            <Card className="flex h-full flex-col p-5">
               <h2 className="card-title">Gastos por categoría</h2>
               {resumen.por_categoria.length ? (
                 <div className="mt-4 space-y-3">
@@ -399,7 +484,26 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
       ) : null}
 
       {tab === "gastos" ? (
-        <Card className="overflow-hidden">
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Stat
+              label="Total del periodo"
+              value={lempiras(totalGastos)}
+              hint="Según el filtro aplicado"
+              icon={<Receipt className="h-5 w-5" />}
+            />
+            <Stat
+              label="Movimientos"
+              value={gastos.length}
+              hint="Gastos registrados"
+            />
+            <Stat
+              label="Gasto promedio"
+              value={lempiras(gastos.length ? totalGastos / gastos.length : 0)}
+              hint="Por movimiento"
+            />
+          </div>
+          <Card className="overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div>
               <h2 className="card-title">Gastos registrados</h2>
@@ -407,64 +511,50 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
                 {gastos.length} movimientos en el periodo.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="w-40">
-                <Label>Categoría</Label>
-                <Select
-                  value={filtroCategoria}
-                  onChange={(e) => setFiltroCategoria(e.target.value)}
-                >
-                  <option value="">Todas</option>
-                  {CATEGORIAS_GASTO.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              {puede("/finanzas", "crear") ? (
-                <Button onClick={abrirNuevo}>
-                  <Plus className="h-4 w-4" />
-                  Nuevo gasto
-                </Button>
-              ) : null}
+            <div className="w-40">
+              <Label>Categoría</Label>
+              <Select
+                value={filtroCategoria}
+                onChange={(e) => setFiltroCategoria(e.target.value)}
+              >
+                <option value="">Todas</option>
+                {CATEGORIAS_GASTO.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </Select>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="max-h-[60vh] overflow-auto">
             <table className="table">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr>
-                  <th className="px-4 py-2.5">Fecha</th>
-                  <th className="px-4 py-2.5">Categoría</th>
-                  <th className="px-4 py-2.5">Descripción</th>
-                  <th className="px-4 py-2.5">Método</th>
-                  <th className="px-4 py-2.5">Proveedor</th>
-                  <th className="px-4 py-2.5">Registrado por</th>
-                  <th className="px-4 py-2.5 text-right">Monto</th>
-                  <th className="px-4 py-2.5 text-right">Acciones</th>
+                  <th>Fecha</th>
+                  <th>Categoría</th>
+                  <th>Descripción</th>
+                  <th>Método</th>
+                  <th>Proveedor</th>
+                  <th>Registrado por</th>
+                  <th className="text-right">Monto</th>
+                  <th className="text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {gastos.map((g) => (
                   <tr key={g.id} className="border-t border-border">
-                    <td className="whitespace-nowrap px-4 py-2.5 text-fg-muted">
-                      {fechaHora(g.fecha)}
-                    </td>
-                    <td className="px-4 py-2.5">
+                    <td className="whitespace-nowrap text-fg-muted">{fechaHora(g.fecha)}</td>
+                    <td>
                       <Badge>{g.categoria}</Badge>
                     </td>
-                    <td className="px-4 py-2.5 text-fg">{g.descripcion || "—"}</td>
-                    <td className="px-4 py-2.5 text-fg-muted">
-                      {pagoLabel(g.metodo_pago)}
-                    </td>
-                    <td className="px-4 py-2.5 text-fg-muted">
-                      {g.proveedor_nombre ?? "—"}
-                    </td>
-                    <td className="px-4 py-2.5 text-fg-muted">{g.usuario_nombre}</td>
-                    <td className="num whitespace-nowrap px-4 py-2.5 font-semibold text-fg">
+                    <td className="text-fg">{g.descripcion || "—"}</td>
+                    <td className="text-fg-muted">{pagoLabel(g.metodo_pago)}</td>
+                    <td className="text-fg-muted">{g.proveedor_nombre ?? "—"}</td>
+                    <td className="text-fg-muted">{g.usuario_nombre}</td>
+                    <td className="num whitespace-nowrap font-semibold text-fg">
                       {lempiras(g.monto)}
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td>
                       <div className="flex justify-end gap-1">
                         {puede("/finanzas", "editar") ? (
                           <Button
@@ -493,71 +583,206 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
                   </tr>
                 ))}
               </tbody>
+              {gastos.length > 0 ? (
+                <tfoot className="border-t border-border bg-surface-2">
+                  <tr>
+                    <td className="px-4 py-3 font-semibold text-fg" colSpan={6}>
+                      Total del periodo
+                    </td>
+                    <td className="num whitespace-nowrap px-4 py-3 font-bold text-fg">
+                      {lempiras(totalGastos)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
             {gastos.length === 0 ? (
-              <p className="p-6 text-center text-sm text-fg-muted">
-                No hay gastos registrados en este periodo.
-              </p>
+              <EmptyState>No hay gastos registrados en este periodo.</EmptyState>
             ) : null}
           </div>
         </Card>
+        </div>
       ) : null}
 
       {tab === "compras" ? (
-        <Card className="overflow-hidden">
-          <div className="p-4">
-            <h2 className="card-title">Compras de inventario derivadas</h2>
-            <p className="mt-1 text-sm text-fg-muted">
-              Se calculan automáticamente de las entradas de stock × el costo actual del producto.
-              No se pueden editar aquí: cambian al registrar entradas en Inventario.
-            </p>
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Stat
+              label="Total del periodo"
+              value={lempiras(resumen?.compras_inventario ?? 0)}
+              hint="Costo de las entradas"
+              icon={<ShoppingCart className="h-5 w-5" />}
+            />
+            <Stat label="Entradas" value={compras.length} hint="Movimientos de stock" />
+            <Stat
+              label="Productos distintos"
+              value={new Set(compras.map((c) => c.producto_id)).size}
+              hint="En este periodo"
+            />
           </div>
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2.5">Fecha</th>
-                  <th className="px-4 py-2.5">Producto</th>
-                  <th className="px-4 py-2.5">Motivo</th>
-                  <th className="px-4 py-2.5 text-right">Cantidad</th>
-                  <th className="px-4 py-2.5 text-right">Costo unit.</th>
-                  <th className="px-4 py-2.5 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {compras.map((c) => (
-                  <tr key={c.id} className="border-t border-border">
-                    <td className="whitespace-nowrap px-4 py-2.5 text-fg-muted">
-                      {fechaHora(c.fecha)}
+          <Card className="overflow-hidden">
+            <div className="p-4">
+              <h2 className="card-title">Compras de inventario derivadas</h2>
+              <p className="mt-1 text-sm text-fg-muted">
+                Se calculan automáticamente de las entradas de stock × el costo actual del producto.
+                No se pueden editar aquí: cambian al registrar entradas en Inventario.
+              </p>
+            </div>
+            <div className="max-h-[60vh] overflow-auto">
+              <table className="table">
+                <thead className="sticky top-0 z-10">
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Producto</th>
+                    <th>Motivo</th>
+                    <th className="text-right">Cantidad</th>
+                    <th className="text-right">Costo unit.</th>
+                    <th className="text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {compras.map((c) => (
+                    <tr key={c.id} className="border-t border-border">
+                      <td className="whitespace-nowrap text-fg-muted">{fechaHora(c.fecha)}</td>
+                      <td className="text-fg">{c.producto_nombre}</td>
+                      <td className="text-fg-muted">{c.motivo || "—"}</td>
+                      <td className="num">{c.cantidad}</td>
+                      <td className="num text-fg-muted">{lempiras(c.costo_unitario)}</td>
+                      <td className="num font-semibold text-fg">{lempiras(c.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t border-border bg-surface-2">
+                  <tr>
+                    <td className="px-4 py-3 font-semibold text-fg" colSpan={5}>
+                      Total del periodo
                     </td>
-                    <td className="px-4 py-2.5 text-fg">{c.producto_nombre}</td>
-                    <td className="px-4 py-2.5 text-fg-muted">{c.motivo || "—"}</td>
-                    <td className="num px-4 py-2.5">{c.cantidad}</td>
-                    <td className="num px-4 py-2.5">{lempiras(c.costo_unitario)}</td>
-                    <td className="num px-4 py-2.5 font-semibold text-fg">
-                      {lempiras(c.total)}
+                    <td className="num px-4 py-3 font-bold text-fg">
+                      {lempiras(resumen?.compras_inventario ?? 0)}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot className="border-t border-border bg-surface-2">
-                <tr>
-                  <td className="px-4 py-3 font-semibold text-fg" colSpan={5}>
-                    Total del periodo
-                  </td>
-                  <td className="num px-4 py-3 font-bold text-fg">
-                    {lempiras(resumen?.compras_inventario ?? 0)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-            {compras.length === 0 ? (
-              <p className="p-6 text-center text-sm text-fg-muted">
-                No hay entradas de inventario en este periodo.
-              </p>
-            ) : null}
+                </tfoot>
+              </table>
+              {compras.length === 0 ? (
+                <EmptyState>No hay entradas de inventario en este periodo.</EmptyState>
+              ) : null}
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
+      {tab === "extras" && esAdmin ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Stat
+              label="Registros"
+              value={extras.length}
+              hint="En el periodo seleccionado"
+              icon={<Clock className="h-5 w-5" />}
+            />
+            <Stat
+              label="Horas extras"
+              value={`${extraHoras.toFixed(2)} h`}
+              icon={<Clock className="h-5 w-5" />}
+            />
+            <Stat
+              label="Total pagado"
+              value={lempiras(extraMonto)}
+              icon={<Wallet className="h-5 w-5" />}
+              tone="ok"
+            />
           </div>
-        </Card>
+          <Card className="overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div>
+                <h2 className="card-title">Horas extras pagadas</h2>
+                <p className="mt-1 text-sm text-fg-muted">
+                  Cada pago se registra también como gasto de Sueldos en esta misma página.
+                </p>
+              </div>
+              <Button onClick={abrirNuevaExtra}>
+                <Plus className="h-4 w-4" />
+                Registrar pago
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-end gap-3 px-4 pb-3">
+              <div className="w-48">
+                <Label>Empleado</Label>
+                <Select value={filtroEmpleado} onChange={(e) => setFiltroEmpleado(e.target.value)}>
+                  <option value="">Todos los empleados</option>
+                  {empleados.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nombre}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="w-40">
+                <Label>Desde</Label>
+                <DatePicker value={extraDesde} onChange={setExtraDesde} />
+              </div>
+              <div className="w-40">
+                <Label>Hasta</Label>
+                <DatePicker value={extraHasta} onChange={setExtraHasta} />
+              </div>
+            </div>
+            <div className="max-h-[60vh] overflow-auto">
+              <table className="table">
+                <thead className="sticky top-0 z-10">
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Empleado</th>
+                    <th className="text-right">Horas</th>
+                    <th className="text-right">Pagado</th>
+                    <th>Nota</th>
+                    <th>Gasto</th>
+                    <th className="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {extras.map((h) => (
+                    <tr key={h.id} className="border-t border-border">
+                      <td className="whitespace-nowrap text-fg-muted">{fechaHora(h.fecha)}</td>
+                      <td className="font-medium">{h.empleado_nombre}</td>
+                      <td className="num font-medium">{h.horas.toFixed(2)} h</td>
+                      <td className="num font-semibold text-fg">{lempiras(h.monto)}</td>
+                      <td className="text-fg-muted">{h.nota || "—"}</td>
+                      <td className="text-xs text-fg-muted">
+                        {h.gasto_id ? `#${h.gasto_id}` : "—"}
+                      </td>
+                      <td>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="iconSm"
+                            title="Editar pago"
+                            aria-label={`Editar pago ${h.id}`}
+                            onClick={() => abrirEditarExtra(h)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="iconSm"
+                            title="Eliminar pago"
+                            aria-label={`Eliminar pago ${h.id}`}
+                            onClick={() => setBorrarExtra(h)}
+                          >
+                            <Trash2 className="h-4 w-4 text-danger-fg" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {extras.length === 0 ? (
+                <EmptyState>No hay pagos de horas extras en el periodo seleccionado.</EmptyState>
+              ) : null}
+            </div>
+          </Card>
+        </div>
       ) : null}
 
       <Modal
@@ -659,6 +884,101 @@ export function FinanzasPage({ sinHero = false, sinPage = false }: { sinHero?: b
             Cancelar
           </Button>
           <Button variant="danger" onClick={() => void confirmarBorrar()}>
+            <Trash2 className="h-4 w-4" />
+            Eliminar
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={extraOpen}
+        title={extraForm.id ? "Editar pago de horas extras" : "Registrar horas extras"}
+        subtitle="También se guarda como gasto de Sueldos en Finanzas"
+        onClose={() => setExtraOpen(false)}
+      >
+        <form onSubmit={guardarExtra} className="space-y-4">
+          <div>
+            <Label>Empleado</Label>
+            <Select
+              value={String(extraForm.empleado_id)}
+              onChange={(e) =>
+                setExtraForm({ ...extraForm, empleado_id: Number(e.target.value) })
+              }
+            >
+              <option value="0">Seleccione un empleado</option>
+              {empleados.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nombre}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <Label>Fecha</Label>
+              <DatePicker
+                value={extraForm.fecha}
+                onChange={(v) => setExtraForm({ ...extraForm, fecha: v })}
+              />
+            </div>
+            <div>
+              <Label>Horas</Label>
+              <Input
+                type="number"
+                min="0.25"
+                step="0.25"
+                value={extraForm.horas || ""}
+                onChange={(e) => setExtraForm({ ...extraForm, horas: Number(e.target.value) })}
+                required
+              />
+            </div>
+            <div>
+              <Label>Monto pagado</Label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={extraForm.monto || ""}
+                onChange={(e) => setExtraForm({ ...extraForm, monto: Number(e.target.value) })}
+                required
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Nota (opcional)</Label>
+            <Textarea
+              value={extraForm.nota}
+              onChange={(e) => setExtraForm({ ...extraForm, nota: e.target.value })}
+              placeholder="Ej. Jornada del sábado"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setExtraOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={guardandoExtra}>
+              {guardandoExtra ? "Guardando…" : "Guardar pago"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={!!borrarExtra}
+        title="Eliminar pago de horas extras"
+        subtitle="También se eliminará el gasto de Sueldos asociado"
+        small
+        onClose={() => setBorrarExtra(null)}
+      >
+        <p className="text-sm text-fg-muted">
+          ¿Eliminar el pago de <b className="text-fg">{borrarExtra?.empleado_nombre}</b> por{" "}
+          <b className="text-fg">{lempiras(borrarExtra?.monto ?? 0)}</b>?
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setBorrarExtra(null)}>
+            Cancelar
+          </Button>
+          <Button variant="danger" onClick={() => void confirmarBorrarExtra()}>
             <Trash2 className="h-4 w-4" />
             Eliminar
           </Button>

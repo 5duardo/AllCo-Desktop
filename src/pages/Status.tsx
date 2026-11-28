@@ -90,7 +90,6 @@ export function StatusPage({ sinHero = false, sinPage = false }: { sinHero?: boo
         subtitle="Registro de actividad, errores e impresión. Solo administrador."
         description="Revisa la actividad reciente, los errores y el estado de los periféricos conectados. Los respaldos están en la pestaña Base de datos de este módulo."
         icon={Activity}
-        badge="Sistema"
       />}
 
       {error ? <Alert>{error}</Alert> : null}

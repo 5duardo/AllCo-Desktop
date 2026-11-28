@@ -11,11 +11,13 @@ export function PageHero({
   subtitle?: string;
   description: string;
   icon?: LucideIcon;
-  badge?: ReactNode;
   children?: ReactNode;
 }) {
   return (
-    <div className="hero-text mb-5 rounded-2xl bg-accent p-6 text-on-accent md:p-7">
+    <div
+      className="hero-text mb-5 rounded-2xl p-6 md:p-7"
+      style={{ backgroundColor: "var(--accent)", color: "var(--on-accent)", opacity: 1 }}
+    >
       <div className="flex min-w-0 items-center gap-3">
         {Icon ? (
           <span className="hero-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-full">

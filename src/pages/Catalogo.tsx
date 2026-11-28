@@ -32,13 +32,12 @@ export function CatalogoPage() {
   return (
     <div className="page">
       <PageHero
-        title="Catálogo"
+        title="Inventario"
         subtitle="Productos, servicios y proveedores"
         description="Administre lo que vende y a quién le compra: productos e inventario, servicios y proveedores, todo en un mismo lugar."
         icon={Package}
-        badge="Inventario y servicios"
       />
-      <div className="seg mb-5 flex-wrap" role="group" aria-label="Secciones del catálogo">
+      <div className="seg mb-5 flex-wrap" role="group" aria-label="Secciones del inventario">
         {visibles.map((t) => {
           const Icon = t.icon;
           return (

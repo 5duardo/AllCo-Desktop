@@ -6,6 +6,15 @@ use rusqlite::params;
 use tauri::State;
 
 fn cliente_row(r: &rusqlite::Row) -> rusqlite::Result<Cliente> {
+    let ventas_contado: i64 = r.get(9)?;
+    let ventas_credito: i64 = r.get(10)?;
+    let condicion = match (ventas_contado, ventas_credito) {
+        (0, 0) => "sin_ventas",
+        (_, 0) => "contado",
+        (0, _) => "credito",
+        _ => "mixto",
+    }
+    .to_string();
     Ok(Cliente {
         id: r.get(0)?,
         nombre: r.get(1)?,
@@ -16,6 +25,11 @@ fn cliente_row(r: &rusqlite::Row) -> rusqlite::Result<Cliente> {
         created_at: r.get(6)?,
         facturas: r.get(7)?,
         total_comprado: r.get(8)?,
+        ventas_contado,
+        ventas_credito,
+        total_contado: r.get(11)?,
+        total_credito: r.get(12)?,
+        condicion,
     })
 }
 
@@ -31,7 +45,11 @@ pub fn listar_clientes(
     let mut sql = String::from(
         "SELECT c.id, c.nombre, c.telefono, c.correo, c.direccion, c.activo, c.created_at,
                 (SELECT COUNT(*) FROM ventas v WHERE v.cliente_id = c.id AND v.estado = 'completada'),
-                (SELECT COALESCE(SUM(v.total),0) FROM ventas v WHERE v.cliente_id = c.id AND v.estado = 'completada')
+                (SELECT COALESCE(SUM(v.total),0) FROM ventas v WHERE v.cliente_id = c.id AND v.estado = 'completada'),
+                (SELECT COUNT(*) FROM ventas v WHERE v.cliente_id = c.id AND v.estado = 'completada' AND v.condicion = 'contado'),
+                (SELECT COUNT(*) FROM ventas v WHERE v.cliente_id = c.id AND v.estado = 'completada' AND v.condicion = 'credito'),
+                (SELECT COALESCE(SUM(v.total),0) FROM ventas v WHERE v.cliente_id = c.id AND v.estado = 'completada' AND v.condicion = 'contado'),
+                (SELECT COALESCE(SUM(v.total),0) FROM ventas v WHERE v.cliente_id = c.id AND v.estado = 'completada' AND v.condicion = 'credito')
          FROM clientes c WHERE 1=1",
     );
     if solo_activos.unwrap_or(true) {
@@ -116,7 +134,8 @@ pub fn facturas_cliente(
     let mut stmt = conn
         .prepare(
             "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
-                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
+                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre,
+                    v.condicion
              FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
              LEFT JOIN clientes c ON c.id = v.cliente_id
              WHERE v.cliente_id = ?1 AND date(v.fecha) >= date(?2) AND date(v.fecha) <= date(?3)
@@ -135,6 +154,7 @@ pub fn facturas_cliente(
                 estado: r.get(6)?,
                 items: r.get(7)?,
                 cliente_nombre: r.get(8)?,
+                condicion: r.get(9)?,
             })
         })
         .map_err(|e| e.to_string())?;

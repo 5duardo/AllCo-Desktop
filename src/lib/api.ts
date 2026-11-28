@@ -14,6 +14,8 @@ import type {
   FavoritoDispositivo,
   Gasto,
   GastoIn,
+  HoraExtra,
+  HoraExtraIn,
   MarcaNegocio,
   Movimiento,
   Producto,
@@ -59,6 +61,14 @@ export const api = {
   listarEmpleados: (soloActivos = false) =>
     invoke<Empleado[]>("listar_empleados", { soloActivos }),
   guardarEmpleado: (data: EmpleadoIn) => invoke<number>("guardar_empleado", { data }),
+  listarHorasExtras: (empleadoId?: number | null, desde?: string, hasta?: string) =>
+    invoke<HoraExtra[]>("listar_horas_extras", {
+      empleadoId: empleadoId ?? null,
+      desde: desde || null,
+      hasta: hasta || null,
+    }),
+  guardarHoraExtra: (data: HoraExtraIn) => invoke<number>("guardar_hora_extra", { data }),
+  eliminarHoraExtra: (id: number) => invoke<void>("eliminar_hora_extra", { id }),
   listarSucursales: () => invoke<CatalogoSimple[]>("listar_sucursales"),
   listarProductos: (q?: string, estado: "activos" | "archivados" | "todos" = "activos") =>
     invoke<Producto[]>("listar_productos", { q: q || null, estado }),
@@ -108,6 +118,7 @@ export const api = {
     items: VentaItemIn[];
     descuento: number;
     metodo_pago: string;
+    condicion?: "contado" | "credito";
     recibido: number;
   }) => invoke<VentaResultado>("crear_venta", { data }),
   anularVenta: (ventaId: number, motivo: string) =>

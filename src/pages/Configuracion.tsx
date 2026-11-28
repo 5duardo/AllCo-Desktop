@@ -223,7 +223,6 @@ export function ConfigPage() {
         subtitle="Marca, apariencia, factura y datos fiscales"
         description="Organiza la identidad del negocio, la apariencia de la app, el ticket de caja y los datos fiscales. Los usuarios y las opciones del sistema están en sus propios módulos."
         icon={Settings}
-        badge="Ajustes"
       />
 
       <div

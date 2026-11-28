@@ -19,6 +19,7 @@ fn venta_listado_from_row(r: &rusqlite::Row) -> rusqlite::Result<VentaListado> {
         estado: r.get(6)?,
         items: r.get(7)?,
         cliente_nombre: r.get(8)?,
+        condicion: r.get(9)?,
     })
 }
 
@@ -34,6 +35,9 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
         "efectivo" | "tarjeta" | "transferencia"
     ) {
         return Err("Método de pago inválido.".into());
+    }
+    if !matches!(data.condicion.as_str(), "contado" | "credito") {
+        return Err("Condición de la venta inválida.".into());
     }
 
     let mut conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
@@ -61,15 +65,16 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
 
     tx.execute(
         "INSERT INTO ventas
-         (fecha, usuario_id, sucursal_id, cliente_id, total, descuento, metodo_pago, estado)
-         VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, 'completada')",
+         (fecha, usuario_id, sucursal_id, cliente_id, total, descuento, metodo_pago, condicion, estado)
+         VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6, ?7, 'completada')",
         params![
             ts,
             user.id,
             sucursal_id,
             data.cliente_id,
             data.descuento,
-            data.metodo_pago
+            data.metodo_pago,
+            data.condicion
         ],
     )
     .map_err(|e| e.to_string())?;
@@ -178,6 +183,7 @@ pub fn crear_venta(state: State<AppState>, data: VentaIn) -> Result<VentaResulta
         data.descuento,
         total,
         &data.metodo_pago,
+        &data.condicion,
         data.recibido,
         cambio,
     );
@@ -313,6 +319,7 @@ fn build_ticket(
     descuento: f64,
     total: f64,
     metodo: &str,
+    condicion: &str,
     recibido: f64,
     cambio: f64,
 ) -> String {
@@ -398,6 +405,12 @@ fn build_ticket(
     t.push('\n');
     if ver(&cfg.ticket_mostrar_pago) {
         t.push_str(&format!("Pago: {metodo}\n"));
+        let condicion_label = if condicion == "credito" {
+            "Crédito"
+        } else {
+            "Contado"
+        };
+        t.push_str(&format!("Condición: {condicion_label}\n"));
     }
     if ver(&cfg.ticket_mostrar_recibido) && metodo == "efectivo" {
         t.push_str(&format!(
@@ -504,7 +517,8 @@ pub fn listar_ventas(
     let mut stmt = conn
         .prepare(
             "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
-                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
+                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre,
+                    v.condicion
              FROM ventas v
              JOIN usuarios u ON u.id = v.usuario_id
              LEFT JOIN clientes c ON c.id = v.cliente_id

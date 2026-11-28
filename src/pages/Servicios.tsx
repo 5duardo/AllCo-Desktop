@@ -55,7 +55,6 @@ export function ServiciosPage({ sinHero = false, sinPage = false }: { sinHero?: 
         subtitle="Catálogo de servicios: precios y tiempos estimados"
         description="Administra los servicios que se venden en Caja, con su precio y duración estimada."
         icon={Wrench}
-        badge={`${rows.length} servicios`}
       />}
       <div className="mb-4 flex flex-wrap justify-end gap-2">
         {puede("/servicios", "crear") ? (

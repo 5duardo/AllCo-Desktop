@@ -1,14 +1,14 @@
 import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useState, type FormEvent } from "react";
-import { Contact, Pencil, Plus, Receipt, Search } from "lucide-react";
+import { Contact, CreditCard, Pencil, Plus, Receipt, Search, UserCheck, Wallet } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/context/ToastContext";
 import { useAuth } from "@/context/AuthContext";
-import { fechaHora, lempiras, pagoLabel } from "@/lib/format";
+import { condicionLabel, fechaHora, lempiras, pagoLabel } from "@/lib/format";
 import type { Cliente, ClienteIn, VentaListado } from "@/lib/types";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
-import { Badge, Card } from "@/components/ui/card";
+import { Badge, Card, Stat } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 
@@ -92,6 +92,10 @@ export function ClientesPage() {
     }
   }
 
+  const activos = rows.filter((c) => c.activo).length;
+  const conCredito = rows.filter((c) => c.ventas_credito > 0).length;
+  const totalComprado = rows.reduce((s, c) => s + c.total_comprado, 0);
+
   return (
     <div className="page">
       <PageHero
@@ -99,8 +103,35 @@ export function ClientesPage() {
         subtitle="Directorio y facturas asociadas"
         description="Registra clientes, consulta cuánto han comprado y revisa el historial de facturas de cada uno."
         icon={Contact}
-        badge={`${rows.length} clientes`}
       />
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat
+          label="Clientes"
+          value={rows.length}
+          hint="En el filtro actual"
+          icon={<Contact className="h-5 w-5" />}
+        />
+        <Stat
+          label="Activos"
+          value={activos}
+          hint="En el directorio"
+          tone="ok"
+          icon={<UserCheck className="h-5 w-5" />}
+        />
+        <Stat
+          label="Con crédito"
+          value={conCredito}
+          hint="Compraron al crédito"
+          tone="warn"
+          icon={<CreditCard className="h-5 w-5" />}
+        />
+        <Stat
+          label="Total comprado"
+          value={lempiras(totalComprado)}
+          hint="Facturas completadas"
+          icon={<Wallet className="h-5 w-5" />}
+        />
+      </div>
       {puede("/clientes", "crear") ? (
         <div className="mb-4 flex flex-wrap justify-end gap-2">
           <Button onClick={() => edit()}>
@@ -136,6 +167,7 @@ export function ClientesPage() {
               <th>Dirección</th>
               <th className="num">Facturas</th>
               <th className="num">Total comprado</th>
+              <th>Condición</th>
               <th>Estado</th>
               <th />
             </tr>
@@ -151,6 +183,26 @@ export function ClientesPage() {
                 <td className="text-fg-muted">{c.direccion || "—"}</td>
                 <td className="num">{c.facturas}</td>
                 <td className="num font-semibold">{lempiras(c.total_comprado)}</td>
+                <td>
+                  <Badge
+                    tone={
+                      c.condicion === "credito"
+                        ? "warn"
+                        : c.condicion === "mixto"
+                          ? "accent"
+                          : c.condicion === "contado"
+                            ? "ok"
+                            : "default"
+                    }
+                  >
+                    {condicionLabel(c.condicion)}
+                  </Badge>
+                  {c.ventas_credito > 0 ? (
+                    <p className="mt-1 text-xs text-fg-muted">
+                      {c.ventas_credito} al crédito · {lempiras(c.total_credito)}
+                    </p>
+                  ) : null}
+                </td>
                 <td>{c.activo ? <Badge tone="ok">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
                 <td>
                   <div className="flex justify-end gap-1.5">
@@ -240,7 +292,7 @@ export function ClientesPage() {
             ? undefined
             : esCaja
               ? "Solo ventas del día actual"
-              : `${clienteSel.facturas} facturas · ${lempiras(clienteSel.total_comprado)}`
+              : `${clienteSel.facturas} facturas · ${lempiras(clienteSel.total_comprado)}${clienteSel.ventas_credito > 0 ? ` · ${clienteSel.ventas_credito} al crédito` : ""}`
         }
         onClose={() => setClienteSel(null)}
         wide
@@ -262,6 +314,7 @@ export function ClientesPage() {
                   <th>Fecha</th>
                   <th>Cajero</th>
                   <th>Pago</th>
+                  <th>Condición</th>
                   <th>Estado</th>
                   <th className="num">Total</th>
                 </tr>
@@ -273,6 +326,15 @@ export function ClientesPage() {
                     <td className="whitespace-nowrap text-fg-muted">{fechaHora(v.fecha)}</td>
                     <td>{v.usuario_nombre}</td>
                     <td>{pagoLabel(v.metodo_pago)}</td>
+                    <td
+                      className={
+                        v.condicion === "credito"
+                          ? "font-medium text-warn-fg"
+                          : "text-fg-muted"
+                      }
+                    >
+                      {condicionLabel(v.condicion)}
+                    </td>
                     <td>
                       {v.estado === "anulada" ? (
                         <Badge tone="danger">Anulada</Badge>

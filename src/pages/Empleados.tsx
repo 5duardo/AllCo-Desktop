@@ -61,7 +61,6 @@ export function EmpleadosPage({ sinHero = false, sinPage = false }: { sinHero?: 
         subtitle="Personal del negocio"
         description="Registra al personal, su puesto y su información de contacto."
         icon={Users}
-        badge={`${rows.length} empleados`}
       />}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -145,9 +144,7 @@ export function EmpleadosPage({ sinHero = false, sinPage = false }: { sinHero?: 
             ))}
             {visibles.length === 0 ? (
               <tr>
-                <td colSpan={5} ><EmptyState>
-                  No hay empleados para mostrar.
-                </EmptyState></td>
+                <td colSpan={5}><EmptyState>No hay empleados para mostrar.</EmptyState></td>
               </tr>
             ) : null}
           </tbody>

@@ -13,6 +13,9 @@ fn empleado_row(r: &rusqlite::Row) -> rusqlite::Result<Empleado> {
         telefono: r.get(3)?,
         activo: r.get::<_, i64>(4)? != 0,
         created_at: r.get(5)?,
+        horas_extra_registros: r.get(6)?,
+        horas_extra_horas: r.get(7)?,
+        horas_extra_pagado: r.get(8)?,
     })
 }
 
@@ -23,12 +26,18 @@ pub fn listar_empleados(
 ) -> Result<Vec<Empleado>, String> {
     require_roles(&state, &["admin"])?;
     let conn = state.db.lock().map_err(|_| "Error interno".to_string())?;
-    let sql = if solo_activos.unwrap_or(false) {
-        "SELECT id, nombre, puesto, telefono, activo, created_at FROM empleados WHERE activo = 1 ORDER BY nombre"
-    } else {
-        "SELECT id, nombre, puesto, telefono, activo, created_at FROM empleados ORDER BY nombre"
-    };
-    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+    let mut sql = String::from(
+        "SELECT e.id, e.nombre, e.puesto, e.telefono, e.activo, e.created_at,
+                (SELECT COUNT(*) FROM horas_extras h WHERE h.empleado_id = e.id),
+                (SELECT COALESCE(SUM(h.horas),0) FROM horas_extras h WHERE h.empleado_id = e.id),
+                (SELECT COALESCE(SUM(h.monto),0) FROM horas_extras h WHERE h.empleado_id = e.id)
+         FROM empleados e WHERE 1=1",
+    );
+    if solo_activos.unwrap_or(false) {
+        sql.push_str(" AND e.activo = 1");
+    }
+    sql.push_str(" ORDER BY e.nombre");
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], empleado_row)
         .map_err(|e| e.to_string())?;

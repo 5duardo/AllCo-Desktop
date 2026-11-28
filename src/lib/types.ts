@@ -90,6 +90,12 @@ export type Cliente = {
   created_at: string;
   facturas: number;
   total_comprado: number;
+  ventas_contado: number;
+  ventas_credito: number;
+  total_contado: number;
+  total_credito: number;
+  /** "contado" | "credito" | "mixto" | "sin_ventas" */
+  condicion: string;
 };
 
 export type ClienteIn = {
@@ -126,6 +132,9 @@ export type Empleado = {
   telefono: string;
   activo: boolean;
   created_at: string;
+  horas_extra_registros: number;
+  horas_extra_horas: number;
+  horas_extra_pagado: number;
 };
 
 export type EmpleadoIn = {
@@ -134,6 +143,27 @@ export type EmpleadoIn = {
   puesto: string;
   telefono: string;
   activo: boolean;
+};
+
+export type HoraExtra = {
+  id: number;
+  empleado_id: number;
+  empleado_nombre: string;
+  fecha: string;
+  horas: number;
+  monto: number;
+  nota: string;
+  gasto_id: number | null;
+  created_at: string;
+};
+
+export type HoraExtraIn = {
+  id?: number;
+  empleado_id: number;
+  fecha: string;
+  horas: number;
+  monto: number;
+  nota: string;
 };
 
 export type VentaItemIn = {
@@ -163,6 +193,8 @@ export type VentaListado = {
   estado: string;
   items: number;
   cliente_nombre: string | null;
+  /** "contado" o "credito" */
+  condicion: string;
 };
 
 export type Movimiento = {

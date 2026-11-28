@@ -22,7 +22,7 @@ import type { CatalogoSimple, Movimiento, Producto } from "@/lib/types";
 import { Alert } from "@/components/ui/alert";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
-import { Badge, Card } from "@/components/ui/card";
+import { Badge, Card, Stat } from "@/components/ui/card";
 import { Input, Label, Select } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Modal } from "@/components/ui/modal";
@@ -480,6 +480,11 @@ export function InventarioPage({ sinHero = false, sinPage = false }: { sinHero?:
     );
   }
 
+  const totalProductos = rows.length;
+  const bajoStock = rows.filter((p) => p.stock > 0 && p.stock <= p.stock_minimo).length;
+  const sinStock = rows.filter((p) => p.stock <= 0).length;
+  const valorExistencias = rows.reduce((s, p) => s + p.stock * p.precio_venta, 0);
+
   return (
     <div className={sinPage ? undefined : "page"}>
       {sinHero ? null : <PageHero
@@ -487,12 +492,37 @@ export function InventarioPage({ sinHero = false, sinPage = false }: { sinHero?:
         subtitle="Productos y existencias · kardex y stock mínimo"
         description="Registra productos, controla entradas y salidas, revisa el stock mínimo y consulta el kardex de cada artículo."
         icon={Package}
-        badge={
-          vista === "movimientos"
-            ? `${movimientosFiltrados.length} movimientos`
-            : `${rows.length} productos`
-        }
       />}
+      {vista !== "movimientos" ? (
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Stat
+            label="Productos"
+            value={totalProductos}
+            hint="En el filtro actual"
+            icon={<Package className="h-5 w-5" />}
+          />
+          <Stat
+            label="Bajo stock"
+            value={bajoStock}
+            hint="Al o por debajo del mínimo"
+            tone="warn"
+            icon={<Archive className="h-5 w-5" />}
+          />
+          <Stat
+            label="Sin stock"
+            value={sinStock}
+            hint="Para reponer"
+            tone="danger"
+            icon={<ArchiveRestore className="h-5 w-5" />}
+          />
+          <Stat
+            label="Valor de existencias"
+            value={lempiras(valorExistencias)}
+            hint="Precio de venta × stock"
+            icon={<Archive className="h-5 w-5" />}
+          />
+        </div>
+      ) : null}
       <div className="mb-4 flex flex-wrap justify-end gap-2">
         {puede("/inventario", "editar") ? (
           <Button variant="outline" onClick={() => abrirMovimientoLibre()}>

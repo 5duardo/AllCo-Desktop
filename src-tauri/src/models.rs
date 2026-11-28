@@ -105,6 +105,9 @@ pub struct Empleado {
     pub telefono: String,
     pub activo: bool,
     pub created_at: String,
+    pub horas_extra_registros: i64,
+    pub horas_extra_horas: f64,
+    pub horas_extra_pagado: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,6 +125,30 @@ pub struct EmpleadoIn {
     pub puesto: String,
     pub telefono: String,
     pub activo: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HoraExtra {
+    pub id: i64,
+    pub empleado_id: i64,
+    pub empleado_nombre: String,
+    pub fecha: String,
+    pub horas: f64,
+    pub monto: f64,
+    pub nota: String,
+    pub gasto_id: Option<i64>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HoraExtraIn {
+    pub id: Option<i64>,
+    pub empleado_id: i64,
+    pub fecha: String,
+    pub horas: f64,
+    pub monto: f64,
+    #[serde(default)]
+    pub nota: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -143,7 +170,14 @@ pub struct VentaIn {
     pub items: Vec<VentaItemIn>,
     pub descuento: f64,
     pub metodo_pago: String,
+    /// 'contado' (pago inmediato) o 'credito' (queda pendiente).
+    #[serde(default = "condicion_default")]
+    pub condicion: String,
     pub recibido: f64,
+}
+
+fn condicion_default() -> String {
+    "contado".into()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,6 +191,12 @@ pub struct Cliente {
     pub created_at: String,
     pub facturas: i64,
     pub total_comprado: f64,
+    pub ventas_contado: i64,
+    pub ventas_credito: i64,
+    pub total_contado: f64,
+    pub total_credito: f64,
+    /// 'contado', 'credito', 'mixto' o 'sin_ventas'.
+    pub condicion: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -190,6 +230,8 @@ pub struct VentaListado {
     pub estado: String,
     pub items: i64,
     pub cliente_nombre: Option<String>,
+    /// 'contado' o 'credito'.
+    pub condicion: String,
 }
 
 #[derive(Debug, Serialize)]

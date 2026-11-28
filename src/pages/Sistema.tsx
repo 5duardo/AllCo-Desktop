@@ -30,7 +30,6 @@ export function SistemaPage() {
         subtitle="Estado, preferencias, datos y actualizaciones"
         description="Supervise el estado de la aplicación, ajuste su comportamiento, administre los respaldos y mantenga el programa al día."
         icon={Settings}
-        badge="Mantenimiento"
       />
       <div className="seg mb-5 flex-wrap" role="group" aria-label="Secciones del sistema">
         {TABS.map((t) => {

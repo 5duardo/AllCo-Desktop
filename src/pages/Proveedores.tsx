@@ -61,7 +61,6 @@ export function ProveedoresPage({ sinHero = false, sinPage = false }: { sinHero?
         subtitle="Catálogo de proveedores de inventario"
         description="Registra a los proveedores de los productos y su información de contacto."
         icon={Truck}
-        badge={`${rows.length} proveedores`}
       />}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

@@ -19,6 +19,7 @@ fn venta_row(r: &rusqlite::Row) -> rusqlite::Result<VentaListado> {
         estado: r.get(6)?,
         items: r.get(7)?,
         cliente_nombre: r.get(8)?,
+        condicion: r.get(9)?,
     })
 }
 
@@ -84,7 +85,8 @@ pub fn dashboard(state: State<AppState>) -> Result<DashboardData, String> {
         };
         let sql = format!(
             "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
-                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
+                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre,
+                    v.condicion
              FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
              LEFT JOIN clientes c ON c.id = v.cliente_id
              {filtro}
@@ -235,7 +237,8 @@ pub fn reporte_ventas(
     let mut stmt = conn
         .prepare(
             "SELECT v.id, v.fecha, u.nombre, v.total, v.descuento, v.metodo_pago, v.estado,
-                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre
+                    (SELECT COUNT(*) FROM venta_items i WHERE i.venta_id = v.id), c.nombre,
+                    v.condicion
              FROM ventas v JOIN usuarios u ON u.id = v.usuario_id
              LEFT JOIN clientes c ON c.id = v.cliente_id
              WHERE date(v.fecha) >= date(?1) AND date(v.fecha) <= date(?2)

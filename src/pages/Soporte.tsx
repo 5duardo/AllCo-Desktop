@@ -18,7 +18,6 @@ export function SoportePage() {
         subtitle="Estamos para ayudarte"
         description="Si tiene alguna duda con AllCo o necesita ayuda con la app, escríbanos por cualquiera de estos medios."
         icon={LifeBuoy}
-        badge="Contacto"
       />
 
       <Card className="p-6">

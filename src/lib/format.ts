@@ -34,3 +34,11 @@ export function pagoLabel(m: string) {
   if (m === "transferencia") return "Transferencia";
   return m;
 }
+
+export function condicionLabel(c: string) {
+  if (c === "contado") return "Contado";
+  if (c === "credito") return "Crédito";
+  if (c === "mixto") return "Mixto";
+  if (c === "sin_ventas") return "Sin ventas";
+  return c;
+}

@@ -13,7 +13,7 @@ import {
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
-import { fechaHora, lempiras, pagoLabel } from "@/lib/format";
+import { condicionLabel, fechaHora, lempiras, pagoLabel } from "@/lib/format";
 import type { VentaListado } from "@/lib/types";
 import { PageHero } from "@/components/layout/PageHero";
 import { Button } from "@/components/ui/button";
@@ -232,6 +232,7 @@ export function FacturacionPage({ sinHero = false, sinPage = false }: { sinHero?
                 <th>Cliente</th>
                 <th>Cajero</th>
                 <th>Pago</th>
+                <th>Condición</th>
                 <th>Ítems</th>
                 <th className="num">Total</th>
                 <th>Estado</th>
@@ -246,6 +247,15 @@ export function FacturacionPage({ sinHero = false, sinPage = false }: { sinHero?
                   <td>{v.cliente_nombre ?? "Consumidor final"}</td>
                   <td className="text-fg-muted">{v.usuario_nombre}</td>
                   <td className="text-fg-muted">{pagoLabel(v.metodo_pago)}</td>
+                  <td
+                    className={
+                      v.condicion === "credito"
+                        ? "font-medium text-warn-fg"
+                        : "text-fg-muted"
+                    }
+                  >
+                    {condicionLabel(v.condicion)}
+                  </td>
                   <td className="num text-fg-muted">{v.items}</td>
                   <td className="num font-semibold">{lempiras(v.total)}</td>
                   <td>

@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useFullscreen } from "@/context/FullscreenContext";
 import { useToast } from "@/context/ToastContext";
-import { lempiras } from "@/lib/format";
+import { condicionLabel, lempiras } from "@/lib/format";
 import type { CartLine, Cliente, Producto, Servicio } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/alert";
@@ -41,6 +41,8 @@ export function PosPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [descuentoPorc, setDescuentoPorc] = useState(0);
   const [metodo, setMetodo] = useState("efectivo");
+  const [condicion, setCondicion] = useState<"contado" | "credito">("contado");
+  const [facturaCondicion, setFacturaCondicion] = useState<"contado" | "credito">("contado");
   const [recibido, setRecibido] = useState("");
   const [factura, setFactura] = useState<string | null>(null);
   const [facturaId, setFacturaId] = useState<number | null>(null);
@@ -315,16 +317,19 @@ export function PosPage() {
         })),
         descuento,
         metodo_pago: metodo,
+        condicion,
         recibido: rec,
       });
       setFactura(res.ticket);
       setFacturaId(res.id);
+      setFacturaCondicion(condicion);
       setImpresion({ ok: res.impresion_ok, error: res.impresion_error ?? null });
       toast.ok(`Factura #${res.id} registrada.`);
       setCart([]);
       setDescuentoPorc(0);
       setRecibido("");
       setClienteId("");
+      setCondicion("contado");
       void cargarCatalogos().catch(() => {});
     } catch (err) {
       toast.error(String(err));
@@ -705,6 +710,44 @@ export function PosPage() {
                 ))}
               </Select>
             </div>
+            <div>
+              <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.08em] text-fg-muted">
+                Condición de la venta
+              </span>
+              <div className="seg grid grid-cols-2" role="group" aria-label="Condición de la venta">
+                <button
+                  type="button"
+                  onClick={() => setCondicion("contado")}
+                  aria-pressed={condicion === "contado"}
+                  title="El cliente paga al momento"
+                  className={cn(
+                    "seg-item gap-1 px-1.5",
+                    condicion === "contado" && "seg-item-active",
+                  )}
+                >
+                  <Banknote className="h-4 w-4" />
+                  Al contado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCondicion("credito")}
+                  aria-pressed={condicion === "credito"}
+                  title="La venta queda registrada al crédito"
+                  className={cn(
+                    "seg-item gap-1 px-1.5",
+                    condicion === "credito" && "seg-item-active",
+                  )}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Al crédito
+                </button>
+              </div>
+              {condicion === "credito" ? (
+                <p className="mt-1.5 text-[11px] text-warn-fg">
+                  La factura quedará marcada como venta al crédito.
+                </p>
+              ) : null}
+            </div>
             {canDiscount ? (
               <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 px-3 py-2">
                 <span className="text-sm font-medium text-fg-muted">Descuento</span>
@@ -836,6 +879,12 @@ export function PosPage() {
           <CheckCircle2 className="h-5 w-5" />
           Factura generada correctamente
         </p>
+        <div className="mb-3 flex items-center gap-2 text-sm">
+          <span className="text-fg-muted">Condición:</span>
+          <Badge tone={facturaCondicion === "credito" ? "warn" : "ok"}>
+            {condicionLabel(facturaCondicion)}
+          </Badge>
+        </div>
         <div className="mx-auto w-fit max-w-full rounded-xl bg-surface-2 p-4">
           <div className="mx-auto w-fit max-w-full overflow-x-auto">
             {logoNegocio ? (

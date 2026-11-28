@@ -88,7 +88,6 @@ export function BaseDatosPage({ sinHero = false, sinPage = false }: { sinHero?: 
         subtitle="Copias de seguridad y mantenimiento"
         description="Revisa el tamaño de la base, administra los respaldos locales y elimina datos operativos con una copia de seguridad previa."
         icon={Database}
-        badge="Solo administrador"
       />}
 
       <div className="grid gap-4 sm:grid-cols-3">
